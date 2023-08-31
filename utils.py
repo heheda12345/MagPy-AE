@@ -5,6 +5,7 @@ import ctypes
 from typing import List
 import traceback
 from timer import Timer
+import numpy as np
 
 _cudart = ctypes.CDLL('libcudart.so')
 
@@ -149,3 +150,15 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100):
     if compile_mode == "dynamo_graph":
         print("num_graph:", num_graph)
         num_graph = 0
+
+
+def read_bin(s, dtype=np.float32):
+    with open(s + ".shape") as f: shape = tuple((int(x) for x in f.read().strip().split(" ")))
+    tensor = torch.from_numpy(np.fromfile(s + ".bin", dtype=dtype)).reshape(shape)
+    return tensor
+
+
+def save_bin(data, path):
+    data = data.clone().detach().cpu().numpy()
+    with open(path + ".shape", "w") as f: f.write(" ".join(str(x) for x in data.shape))
+    data.tofile(path + ".bin")
