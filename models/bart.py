@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer, AutoConfig, AutoModel
 import torch
 
-# dynamo compile error in torch 2.0.1: torch._dynamo.exc.BackendCompilerFailed: debug_wrapper raised ValueError: Cannot view a tensor with shape torch.Size([1, 512, 12, 64]) and strides (393216, 64, 32768, 1) as a tensor with shape (1, 512, 768)! 
+# low speedup
 
 model_name = "microsoft/deberta-base"
 device = "cuda:0"
@@ -17,7 +17,7 @@ def get_model():
 def get_input(batch_size):
     # tokenizer = AutoTokenizer.from_pretrained(model_name)
     # inputs = tokenizer("Hello world! Hello world! Hello world! Hello world! Hello world!", return_tensors="pt").to(device)
-    # assert len(inputs) == 3
+    # print(inputs)
     # return (inputs['input_ids'], inputs['attention_mask'], inputs['token_type_ids']), {}
     vocab_size = 50265
     seq_len = 256
