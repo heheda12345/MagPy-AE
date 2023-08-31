@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from utils import read_bin
+import random
 
 MAX_LENGTH = 50
 OUTPUT_SIZE = 3797
@@ -135,3 +135,18 @@ def get_input(batch_size):
     h = torch.randn(batch_size, HIDDEN_SIZE, device='cuda')
     c = torch.randn(batch_size, HIDDEN_SIZE, device='cuda')
     return (encoder_output, mask, h, c), {}
+
+def get_dynamic_inputs(batch_size, num_inputs):
+    seq_len = [random.randint(1, MAX_LENGTH) for _ in range(num_inputs)]
+    all_masks = []
+    for i in range(num_inputs):
+        std = np.random.randint(1, OUTPUT_SIZE, (batch_size, MAX_LENGTH))
+        if seq_len[i] < MAX_LENGTH:
+            std[:, seq_len[i]:] = 0
+        std = torch.tensor(std, device='cuda')
+        mask = gen_mask_from_sequence(std)
+        all_masks.append(mask)
+    encoder_output = torch.randn(MAX_LENGTH, batch_size, HIDDEN_SIZE, device='cuda')
+    h = torch.randn(batch_size, HIDDEN_SIZE, device='cuda')
+    c = torch.randn(batch_size, HIDDEN_SIZE, device='cuda')
+    return [(encoder_output, all_masks[i], h, c) for i in range(num_inputs)],  [{} for _ in range(num_inputs)]

@@ -2,6 +2,9 @@ import torch.nn as nn
 import math
 import torch
 import torch.nn.functional as F
+from utils import read_bin
+
+data_dir = '../data/blockdrop'
 
 class Identity(nn.Module):
     def __init__(self):
@@ -271,8 +274,13 @@ def get_model():
 def get_input(batch_size):
     return (torch.randn(batch_size, 3, 32, 32).cuda(), torch.randint(0, 2, (batch_size, 15)).cuda()), {}
 
-def get_dynamic_input(batch_size, num_inputs):
+def get_dynamic_inputs(batch_size, num_inputs):
     inp = torch.randn(batch_size, 3, 32, 32).cuda()
-    policy = [torch.randint(0, 2, (batch_size, 15)).cuda() for _ in range(num_inputs)]
-    return (inp, policy), {}
+    policies = read_bin(data_dir + '/policies').cuda()
+    sampled_indices = torch.randint(0, policies.shape[0], (num_inputs * batch_size,)).cuda()
+    policy = policies[sampled_indices]
+    policy = policy.view(num_inputs, batch_size, -1)
+    policy = [policy[i] for i in range(num_inputs)]
+    return [(inp, policy[i]) for i in range(num_inputs)], [{} for _ in range(num_inputs)]
+
 

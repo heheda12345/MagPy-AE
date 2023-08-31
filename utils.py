@@ -89,7 +89,7 @@ def perf(repeat=100, sync=True, nvprof=True):
     return wrapper1
 
 
-def perf_test_run(f, compile_mode, repeat, *args, **kwargs):
+def perf_test_run(f, compile_mode, repeat, args, kwargs):
     for idx in range(repeat):
         torch.cuda.synchronize()
         o = f(*args, **kwargs)
@@ -108,8 +108,28 @@ def perf_test_run(f, compile_mode, repeat, *args, **kwargs):
     timer.report()
 
 
-def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100):
-    repeat = 100
+def perf_test_run_dynamic(f, compile_mode, repeat, args_all, kwargs_all):
+    for idx in range(repeat):
+        print("warmup:", idx)
+        torch.cuda.synchronize()
+        o = f(*args_all[idx], **kwargs_all[idx])
+        torch.cuda.synchronize()
+    
+    profile_start()
+    timer = Timer()
+    for idx in range(repeat):
+        print("run:", idx)
+        torch.cuda.synchronize()
+        timer.start()
+        o = f(*args_all[idx], **kwargs_all[idx])
+        torch.cuda.synchronize()
+        timer.log()
+    profile_stop()
+    print("compile_mode:", compile_mode)
+    timer.report()
+
+
+def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100, dynamic_input=False):
     if compile_mode == "trace":
         # only when kwargs is empty
         if len(kwargs) > 0:
@@ -120,7 +140,10 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100):
         compiled = torch.compile(f)
     elif compile_mode == "dynamo_graph":
         torch._dynamo.reset()
-        explain(f, *args, **kwargs)
+        if dynamic_input:
+            explain(f, *args[0], **kwargs[0])
+        else:
+            explain(f, *args, **kwargs)
         torch._dynamo.reset()
         compiled = torch.compile(f, backend=custom_backend)
     elif compile_mode == "eager":
@@ -145,7 +168,11 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100):
     if compile_mode == "dynamo_graph":
         num_graph = 0
 
-    perf_test_run(compiled, compile_mode, repeat, *args)
+    if dynamic_input:
+        perf_test_run_dynamic(compiled, compile_mode, num_repeat, args, kwargs)
+    else:
+        perf_test_run(compiled, compile_mode, num_repeat, args, kwargs)
+
 
     if compile_mode == "dynamo_graph":
         print("num_graph:", num_graph)

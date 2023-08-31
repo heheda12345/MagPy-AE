@@ -120,6 +120,6 @@ def get_input(batch_size):
 
 
 def get_dynamic_inputs(batch_size, num_inputs):
-    inputs = [torch.randn(i, batch_size, input_size).cuda() for i in range(1, num_inputs + 1)]
+    inputs = [(torch.randn(i, batch_size, input_size).cuda(),) for i in range(1, num_inputs + 1)]
     random.shuffle(inputs)
-    return inputs
+    return inputs, [{} for _ in range(num_inputs)]
