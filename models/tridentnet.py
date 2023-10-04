@@ -22,6 +22,249 @@ from typing import Iterable, Optional
 
 from mmcv.runner.dist_utils import master_only
 from mmcv.utils.logging import get_logger, logger_initialized, print_log
+import inspect
+from torch.nn.modules.utils import _pair
+import numpy as np
+import torch.nn.functional as F
+
+CONV_LAYERS = {
+    'Conv1d': nn.Conv1d,
+    'Conv2d': nn.Conv2d,
+    'Conv3d': nn.Conv3d,
+    'Conv': nn.Conv2d,
+}
+
+NORM_LAYERS = {
+    
+    'BN': nn.BatchNorm2d,
+    'BN1d': nn.BatchNorm1d,
+    'BN2d': nn.BatchNorm2d,
+    'BN3d': nn.BatchNorm3d,
+    # 'SyncBN': SyncBatchNorm,
+    'GN': nn.GroupNorm,
+    'LN': nn.LayerNorm,
+    'IN': nn.InstanceNorm2d,
+    'IN1d': nn.InstanceNorm1d,
+    'IN2d': nn.InstanceNorm2d,
+    'IN3d': nn.InstanceNorm3d,
+}
+
+
+def infer_abbr_norm(class_type):
+    """Infer abbreviation from the class name.
+
+    When we build a norm layer with `build_norm_layer()`, we want to preserve
+    the norm type in variable names, e.g, self.bn1, self.gn. This method will
+    infer the abbreviation to map class types to abbreviations.
+
+    Rule 1: If the class has the property "_abbr_", return the property.
+    Rule 2: If the parent class is _BatchNorm, GroupNorm, LayerNorm or
+    InstanceNorm, the abbreviation of this layer will be "bn", "gn", "ln" and
+    "in" respectively.
+    Rule 3: If the class name contains "batch", "group", "layer" or "instance",
+    the abbreviation of this layer will be "bn", "gn", "ln" and "in"
+    respectively.
+    Rule 4: Otherwise, the abbreviation falls back to "norm".
+
+    Args:
+        class_type (type): The norm layer type.
+
+    Returns:
+        str: The inferred abbreviation.
+    """
+    if not inspect.isclass(class_type):
+        raise TypeError(
+            f'class_type must be a type, but got {type(class_type)}')
+    if hasattr(class_type, '_abbr_'):
+        return class_type._abbr_
+    # if issubclass(class_type, _InstanceNorm):  # IN is a subclass of BN
+    #     return 'in'
+    if issubclass(class_type, _BatchNorm):
+        return 'bn'
+    elif issubclass(class_type, nn.GroupNorm):
+        return 'gn'
+    elif issubclass(class_type, nn.LayerNorm):
+        return 'ln'
+    else:
+        class_name = class_type.__name__.lower()
+        if 'batch' in class_name:
+            return 'bn'
+        elif 'group' in class_name:
+            return 'gn'
+        elif 'layer' in class_name:
+            return 'ln'
+        elif 'instance' in class_name:
+            return 'in'
+        else:
+            return 'norm_layer'
+
+def build_norm_layer(cfg: Dict,
+                     num_features: int,
+                     postfix: Union[int, str] = '') -> Tuple[str, nn.Module]:
+    """Build normalization layer.
+
+    Args:
+        cfg (dict): The norm layer config, which should contain:
+
+            - type (str): Layer type.
+            - layer args: Args needed to instantiate a norm layer.
+            - requires_grad (bool, optional): Whether stop gradient updates.
+        num_features (int): Number of input channels.
+        postfix (int | str): The postfix to be appended into norm abbreviation
+            to create named layer.
+
+    Returns:
+        tuple[str, nn.Module]: The first element is the layer name consisting
+        of abbreviation and postfix, e.g., bn1, gn. The second element is the
+        created norm layer.
+    """
+    if not isinstance(cfg, dict):
+        raise TypeError('cfg must be a dict')
+    if 'type' not in cfg:
+        raise KeyError('the cfg dict must contain the key "type"')
+    cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop('type')
+    if layer_type not in NORM_LAYERS:
+        raise KeyError(f'Unrecognized norm type {layer_type}')
+
+    norm_layer = NORM_LAYERS.get(layer_type)
+    abbr = infer_abbr_norm(norm_layer)
+
+    assert isinstance(postfix, (int, str))
+    name = abbr + str(postfix)
+
+    requires_grad = cfg_.pop('requires_grad', True)
+    cfg_.setdefault('eps', 1e-5)
+    if layer_type != 'GN':
+        layer = norm_layer(num_features, **cfg_)
+        if layer_type == 'SyncBN' and hasattr(layer, '_specify_ddp_gpu_num'):
+            layer._specify_ddp_gpu_num(1)
+    else:
+        assert 'num_groups' in cfg_
+        layer = norm_layer(num_channels=num_features, **cfg_)
+
+    for param in layer.parameters():
+        param.requires_grad = requires_grad
+
+    return name, layer
+
+def build_conv_layer(cfg: Optional[Dict], *args, **kwargs) -> nn.Module:
+    """Build convolution layer.
+
+    Args:
+        cfg (None or dict): The conv layer config, which should contain:
+            - type (str): Layer type.
+            - layer args: Args needed to instantiate an conv layer.
+        args (argument list): Arguments passed to the `__init__`
+            method of the corresponding conv layer.
+        kwargs (keyword arguments): Keyword arguments passed to the `__init__`
+            method of the corresponding conv layer.
+
+    Returns:
+        nn.Module: Created conv layer.
+    """
+    if cfg is None:
+        cfg_ = dict(type='Conv2d')
+    else:
+        if not isinstance(cfg, dict):
+            raise TypeError('cfg must be a dict')
+        if 'type' not in cfg:
+            raise KeyError('the cfg dict must contain the key "type"')
+        cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop('type')
+    if layer_type not in CONV_LAYERS:
+        raise KeyError(f'Unrecognized layer type {layer_type}')
+    else:
+        conv_layer = CONV_LAYERS.get(layer_type)
+
+    layer = conv_layer(*args, **kwargs, **cfg_)
+
+    return layer
+
+PLUGIN_LAYERS = {}
+
+
+def infer_abbr_plugin(class_type: type) -> str:
+    """Infer abbreviation from the class name.
+
+    This method will infer the abbreviation to map class types to
+    abbreviations.
+
+    Rule 1: If the class has the property "abbr", return the property.
+    Rule 2: Otherwise, the abbreviation falls back to snake case of class
+    name, e.g. the abbreviation of ``FancyBlock`` will be ``fancy_block``.
+
+    Args:
+        class_type (type): The norm layer type.
+
+    Returns:
+        str: The inferred abbreviation.
+    """
+
+    def camel2snack(word):
+        """Convert camel case word into snack case.
+
+        Modified from `inflection lib
+        <https://inflection.readthedocs.io/en/latest/#inflection.underscore>`_.
+
+        Example::
+
+            >>> camel2snack("FancyBlock")
+            'fancy_block'
+        """
+
+        word = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1_\2', word)
+        word = re.sub(r'([a-z\d])([A-Z])', r'\1_\2', word)
+        word = word.replace('-', '_')
+        return word.lower()
+
+    if not inspect.isclass(class_type):
+        raise TypeError(
+            f'class_type must be a type, but got {type(class_type)}')
+    if hasattr(class_type, '_abbr_'):
+        return class_type._abbr_  # type: ignore
+    else:
+        return camel2snack(class_type.__name__)
+
+
+def build_plugin_layer(cfg: Dict,
+                       postfix: Union[int, str] = '',
+                       **kwargs) -> Tuple[str, nn.Module]:
+    """Build plugin layer.
+
+    Args:
+        cfg (dict): cfg should contain:
+
+            - type (str): identify plugin layer type.
+            - layer args: args needed to instantiate a plugin layer.
+        postfix (int, str): appended into norm abbreviation to
+            create named layer. Default: ''.
+
+    Returns:
+        tuple[str, nn.Module]: The first one is the concatenation of
+        abbreviation and postfix. The second is the created plugin layer.
+    """
+    if not isinstance(cfg, dict):
+        raise TypeError('cfg must be a dict')
+    if 'type' not in cfg:
+        raise KeyError('the cfg dict must contain the key "type"')
+    cfg_ = cfg.copy()
+
+    layer_type = cfg_.pop('type')
+    if layer_type not in PLUGIN_LAYERS:
+        raise KeyError(f'Unrecognized plugin type {layer_type}')
+
+    plugin_layer = PLUGIN_LAYERS.get(layer_type)
+    abbr = infer_abbr_plugin(plugin_layer)
+
+    assert isinstance(postfix, (int, str))
+    name = abbr + str(postfix)
+
+    layer = plugin_layer(**kwargs, **cfg_)
+
+    return name, layer
 
 
 class BaseModule(nn.Module, metaclass=ABCMeta):
@@ -191,6 +434,24 @@ class Sequential(BaseModule, nn.Sequential):
     def __init__(self, *args, init_cfg: Optional[dict] = None):
         BaseModule.__init__(self, init_cfg)
         nn.Sequential.__init__(self, *args)
+
+
+def kaiming_init(module: nn.Module,
+                 a: float = 0,
+                 mode: str = 'fan_out',
+                 nonlinearity: str = 'relu',
+                 bias: float = 0,
+                 distribution: str = 'normal') -> None:
+    assert distribution in ['uniform', 'normal']
+    if hasattr(module, 'weight') and module.weight is not None:
+        if distribution == 'uniform':
+            nn.init.kaiming_uniform_(
+                module.weight, a=a, mode=mode, nonlinearity=nonlinearity)
+        else:
+            nn.init.kaiming_normal_(
+                module.weight, a=a, mode=mode, nonlinearity=nonlinearity)
+    if hasattr(module, 'bias') and module.bias is not None:
+        nn.init.constant_(module.bias, bias)
 
 
 class GeneralizedAttention(nn.Module):
@@ -593,6 +854,8 @@ class GeneralizedAttention(nn.Module):
                     distribution='uniform',
                     a=1)
 
+
+PLUGIN_LAYERS['GeneralizedAttention'] = GeneralizedAttention
 
 class ResLayer(Sequential):
     """ResLayer to build ResNet style backbone.
@@ -1638,7 +1901,7 @@ class TridentResNet(ResNet):
 # '''
 
 
-from mmdet.models.backbones import TridentResNet
+# from mmdet.models.backbones import TridentResNet
 import torch
 
 def get_model():
