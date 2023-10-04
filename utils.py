@@ -24,6 +24,7 @@ torch._dynamo.config.suppress_errors = True
 torch._dynamo.config.verbose=True
 torch._dynamo.config.output_code=True
 import logging
+# logging.basicConfig(level=logging.INFO)
 
 num_graph = 0
 def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):

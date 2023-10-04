@@ -29,7 +29,7 @@ def main():
         model = module.get_model_with_bs(args.bs)
     else:
         raise ValueError("lack of get_model in {}".format(args.model))
-    model = model.eval()
+    model.eval()
     if args.dynamic and hasattr(module, 'get_dynamic_inputs'):
         input_args, input_kwargs = module.get_dynamic_inputs(args.bs, 2 * args.repeat)
         perf_test(model, args.compile, input_args, input_kwargs, args.repeat, True)
