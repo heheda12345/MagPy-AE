@@ -22,9 +22,9 @@ def profile_stop():
     
 torch._dynamo.config.suppress_errors = True
 torch._dynamo.config.verbose=True
-torch._dynamo.config.output_code=True
+# torch._dynamo.config.output_code=True
 import logging
-# logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 
 num_graph = 0
 def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
@@ -40,6 +40,11 @@ def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor])
 
 
 def explain(compiled_func, *args, **kwargs):
+    if torch.__version__ >= "2.1.0":
+        torch._dynamo.reset()
+        explain_output = torch._dynamo.explain(compiled_func)(*args, **kwargs)
+        print(explain_output)
+        return
     (
         explanation,
         out_guards,
