@@ -6,6 +6,11 @@ from typing import List
 import traceback
 from timer import Timer
 import numpy as np
+from frontend import config as sys_config
+from frontend.compile import compile as sys_compile
+import logging
+import torch_xla.core.xla_model as xm
+import torch._dynamo.backends.torchxla
 
 _cudart = ctypes.CDLL('libcudart.so')
 
@@ -20,11 +25,11 @@ def profile_stop():
     if ret != 0:
         raise Exception("cudaProfilerStop() returned %d" % ret)
     
-torch._dynamo.config.suppress_errors = True
-torch._dynamo.config.verbose=True
-# torch._dynamo.config.output_code=True
-import logging
-logging.basicConfig(level=logging.INFO)
+# torch._dynamo.config.suppress_errors = True
+# torch._dynamo.config.verbose=True
+# # torch._dynamo.config.output_code=True
+# import logging
+# logging.basicConfig(level=logging.INFO)
 
 num_graph = 0
 def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
@@ -41,6 +46,7 @@ def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor])
 
 def explain(compiled_func, *args, **kwargs):
     if torch.__version__ >= "2.1.0":
+        torch._logging.set_logs(bytecode=True)
         torch._dynamo.reset()
         explain_output = torch._dynamo.explain(compiled_func)(*args, **kwargs)
         print(explain_output)
@@ -144,6 +150,11 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100, dynamic_input=Fa
     elif compile_mode == "dynamo":
         torch._dynamo.reset()
         compiled = torch.compile(f)
+    elif compile_mode == "dynamo-xla":
+        torch._dynamo.reset()
+        args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
+        kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
+        compiled = torch.compile(f, backend='aot_torchxla_trace_once')
     elif compile_mode == "dynamo_graph":
         torch._dynamo.reset()
         if dynamic_input:
@@ -168,6 +179,24 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100, dynamic_input=Fa
             fx_graph = torch.fx.symbolic_trace(f) # intentionally retrace for time measure
             return compiled_func(*args)
         compiled = fn
+    elif compile_mode == "sys":
+        sys_config.set_config('debug', False)
+        compiled = sys_compile(f)
+    elif compile_mode == "sys-xla":
+        sys_config.set_config('debug', False)
+        sys_config.set_config('backend', 'xla')
+        args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
+        kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
+        compiled = sys_compile(f)
+    elif compile_mode == 'xla':
+        args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
+        kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
+        def f_with_sync(*args, **kwargs):
+            o = f(*args, **kwargs)
+            xm.mark_step()
+            xm.wait_device_ops()
+            return o
+        compiled = f_with_sync
     else:
         raise NotImplementedError
     global num_graph
