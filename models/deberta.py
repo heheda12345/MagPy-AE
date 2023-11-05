@@ -528,17 +528,14 @@ def build_relative_position(query_size, key_size, device):
     return rel_pos_ids
 
 
-@torch.jit.script
 def c2p_dynamic_expand(c2p_pos, query_layer, relative_pos):
     return c2p_pos.expand([query_layer.size(0), query_layer.size(1), query_layer.size(2), relative_pos.size(-1)])
 
 
-@torch.jit.script
 def p2c_dynamic_expand(c2p_pos, query_layer, key_layer):
     return c2p_pos.expand([query_layer.size(0), query_layer.size(1), key_layer.size(-2), key_layer.size(-2)])
 
 
-@torch.jit.script
 def pos_dynamic_expand(pos_index, p2c_att, key_layer):
     return pos_index.expand(p2c_att.size()[:2] + (pos_index.size(-2), key_layer.size(-2)))
 
@@ -1023,7 +1020,7 @@ device = "cuda:0"
 
 def get_model():
     config = AutoConfig.from_pretrained(model_name)
-    config.return_dict = True
+    config.return_dict = False
     model = DebertaModel(config).to(device)
     print("model type", type(model))
     return model

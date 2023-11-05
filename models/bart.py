@@ -1058,7 +1058,6 @@ class BartDecoder(BartPretrainedModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
         all_cross_attentions = () if (output_attentions and encoder_hidden_states is not None) else None
-        # next_decoder_cache = [] if use_cache else None
         next_decoder_cache = () if use_cache else None
 
         # check if head_mask/cross_attn_head_mask has a correct number of layers specified if desired
@@ -1278,7 +1277,7 @@ device = "cuda:0"
 
 def get_model():
     config = AutoConfig.from_pretrained(model_name)
-    config.return_dict = True
+    config.return_dict = False
     # model = AutoModel.from_config(config).to(device)
     model = BartModel(config).to(device)
     print(model)
