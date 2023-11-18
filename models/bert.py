@@ -41,9 +41,6 @@ from transformers.utils import (
 from transformers.models.bert.configuration_bert import BertConfig
 
 
-torch._dynamo.config.verbose = True
-
-
 
 class BertSelfAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None):
@@ -378,7 +375,7 @@ def get_model():
 
 
 def get_input(batch_size):
-    inputs = torch.randn((batch_size, 512, 768)).cuda()
+    inputs = torch.randn((batch_size, 512, 768), device='cuda')
     return (inputs,), {}
 
 def get_dynamic_seqlen(seq_len):

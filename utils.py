@@ -120,7 +120,7 @@ def perf_test_run(f, compile_mode, repeat, args, kwargs):
     timer.report()
 
 
-def perf_test_run_dynamic(f, compile_mode, repeat, args_all, kwargs_all):
+def perf_test_run_cf(f, compile_mode, repeat, args_all, kwargs_all):
     for idx in range(repeat):
         print("warmup:", idx)
         torch.cuda.synchronize()
@@ -140,8 +140,42 @@ def perf_test_run_dynamic(f, compile_mode, repeat, args_all, kwargs_all):
     print("compile_mode:", compile_mode)
     timer.report()
 
+def perf_test_run_bs(f, compile_mode, num_repeat, get_input_fn):
+    bs_list = list(range(2, 18))
+    assert num_repeat % len(bs_list) == 0
+    num_repeat_per_bs = num_repeat // len(bs_list)
+    # compile with bs=7 to avoid specialization
+    args, kwargs = get_input_fn(7)
+    o = f(*args, **kwargs)
+    for i in range(num_repeat_per_bs):
+        for bs in bs_list:
+            args, kwargs = get_input_fn(bs)
+            torch.cuda.synchronize()
+            o = f(*args, **kwargs)
+            torch.cuda.synchronize()
+    
+    profile_start()
+    timer = Timer()
+    for i in range(num_repeat_per_bs):
+        for bs in bs_list:
+            # print("run:", i, bs, flush=True)
+            args, kwargs = get_input_fn(bs)
+            torch.cuda.synchronize()
+            timer.start()
+            o = f(*args, **kwargs)
+            torch.cuda.synchronize()
+            timer.log()
+    profile_stop()
+    print("compile_mode:", compile_mode)
+    timer.report()
 
-def perf_test(f, compile_mode, args, kwargs, num_repeat, dynamic_input):
+# import torch._dynamo.config
+# import logging
+# torch._dynamo.config.verbose=True
+# torch._dynamo.config.output_code=True
+
+def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_mode):
+    # logging.basicConfig(level=logging.INFO, force=True)
     if compile_mode == "trace":
         # only when kwargs is empty
         if len(kwargs) > 0:
@@ -161,6 +195,9 @@ def perf_test(f, compile_mode, args, kwargs, num_repeat, dynamic_input):
             xm.wait_device_ops()
             return o
         compiled = f_with_sync
+    elif compile_mode == "dynamo-dynamic":
+        torch._dynamo.reset()
+        compiled = torch.compile(f, dynamic=True)
     elif compile_mode == "dynamo_graph":
         torch._dynamo.reset()
         if dynamic_input:
@@ -215,8 +252,12 @@ def perf_test(f, compile_mode, args, kwargs, num_repeat, dynamic_input):
     if compile_mode == "dynamo_graph":
         num_graph = 0
 
-    if dynamic_input:
-        perf_test_run_dynamic(compiled, compile_mode, num_repeat, args, kwargs)
+    if dynamic_mode == 'cf':
+        perf_test_run_cf(compiled, compile_mode, num_repeat, args, kwargs)
+    elif dynamic_mode == 'bs':
+        perf_test_run_bs(compiled, compile_mode, num_repeat, get_input_fn)
+    elif dynamic_mode == 'len':
+        raise NotImplementedError
     else:
         perf_test_run(compiled, compile_mode, num_repeat, args, kwargs)
 

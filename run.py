@@ -15,7 +15,9 @@ with NO_LD_PRELOAD_CTX():
     parser.add_argument("--compile", type=str, default="sys")
     parser.add_argument("--model", type=str, required=True)
     parser.add_argument("--bs", type=int, default=1)
-    parser.add_argument("--dynamic", action="store_true")
+    parser.add_argument("--dyn_cf", action="store_true")
+    parser.add_argument("--dyn_bs", action="store_true")
+    parser.add_argument("--dyn_len", action="store_true")
     parser.add_argument("--repeat", type=int, default=100)
 
     args = parser.parse_args()
@@ -34,15 +36,21 @@ with NO_LD_PRELOAD_CTX():
             model = module.get_model_with_bs(args.bs)
         else:
             raise ValueError("lack of get_model in {}".format(args.model))
+        assert args.dyn_cf + args.dyn_bs + args.dyn_len <= 1
         model.eval()
         if args.compile in ("xla", "dynamo-xla", "sys-xla"):
             model = model.to('cpu').to(xm.xla_device())
-        if args.dynamic and hasattr(module, 'get_dynamic_inputs'):
+        if args.dyn_cf:
+            assert hasattr(module, 'get_dynamic_inputs')
             input_args, input_kwargs = module.get_dynamic_inputs(args.bs, 2 * args.repeat)
-            perf_test(model, args.compile, input_args, input_kwargs, args.repeat, True)
+            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, 'cf')
+        elif args.dyn_bs:
+            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs')
+        elif args.dyn_len:
+            raise NotImplementedError
         else:
             input_args, input_kwargs = module.get_input(batch_size=args.bs)
-            perf_test(model, args.compile, input_args, input_kwargs, args.repeat, False)
+            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, None)
 
     if __name__ == "__main__":
             with torch.no_grad():
