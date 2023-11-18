@@ -141,7 +141,7 @@ def perf_test_run_dynamic(f, compile_mode, repeat, args_all, kwargs_all):
     timer.report()
 
 
-def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100, dynamic_input=False):
+def perf_test(f, compile_mode, args, kwargs, num_repeat, dynamic_input):
     if compile_mode == "trace":
         # only when kwargs is empty
         if len(kwargs) > 0:
@@ -154,7 +154,13 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100, dynamic_input=Fa
         torch._dynamo.reset()
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
         kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
-        compiled = torch.compile(f, backend='aot_torchxla_trace_once')
+        compiled_f = torch.compile(f, backend='aot_torchxla_trace_once')
+        def f_with_sync(*args, **kwargs):
+            o = compiled_f(*args, **kwargs)
+            xm.mark_step()
+            xm.wait_device_ops()
+            return o
+        compiled = f_with_sync
     elif compile_mode == "dynamo_graph":
         torch._dynamo.reset()
         if dynamic_input:
@@ -187,7 +193,13 @@ def perf_test(f, compile_mode, args, kwargs={}, num_repeat=100, dynamic_input=Fa
         sys_config.set_config('backend', 'xla')
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
         kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
-        compiled = sys_compile(f)
+        compiled_f = sys_compile(f)
+        def f_with_sync(*args, **kwargs):
+            o = compiled_f(*args, **kwargs)
+            xm.mark_step()
+            xm.wait_device_ops()
+            return o
+        compiled = f_with_sync
     elif compile_mode == 'xla':
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
         kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})

@@ -317,6 +317,6 @@ def get_model():
 
 
 def get_input(batch_size):
-    return (torch.randn((batch_size, 3, 256, 512)).cuda(),), {}
+    return (torch.randn((batch_size, 3, 256, 256)).cuda(),), {}
 
     
