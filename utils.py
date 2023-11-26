@@ -6,7 +6,9 @@ from typing import List
 import traceback
 from timer import Timer
 import numpy as np
+from typing import Iterable
 from frontend import config as sys_config
+from frontend.utils import enable_dyn_shape
 from frontend.compile import compile as sys_compile
 import logging
 import torch_xla.core.xla_model as xm
@@ -77,6 +79,37 @@ def explain(compiled_func, *args, **kwargs):
     print("finish")
 
 
+def assert_equal(ref, out):
+    precision = 5e-3
+    assert type(ref) == type(
+        out), f"wrong type: expect {type(ref)}, got {type(out)}"
+    if isinstance(ref, torch.Tensor):
+        assert (isinstance(out, torch.Tensor))
+        r = ref.cpu()
+        o = out.cpu()
+        if r.dtype == torch.bool and o.dtype == torch.int8:
+            o = o.bool()
+        all_close = torch.allclose(r, o, atol=precision, rtol=precision)
+        if not all_close:
+            close = torch.isclose(r, o, rtol=precision, atol=precision)
+            print("ref:", torch.masked_select(r, ~close))
+            print("out:", torch.masked_select(o, ~close))
+            print(torch.sum(~close))
+            print("wrong answer !!!!!!!!!!!!!!!!!!!!!!!!!!")
+            assert (False)
+    elif isinstance(ref, Iterable):
+        assert (isinstance(out, Iterable))
+        if isinstance(ref, dict):
+            assert (len(ref) == len(out))
+            for k, v in ref.items():
+                assert_equal(v, out[k])
+        else:
+            for r, o in zip(ref, out):
+                assert_equal(r, o)
+    else:
+        assert ref == out, f"wrong answer: expect {ref}, got {out}"
+
+
 def perf(repeat=100, sync=True, nvprof=True):
     def wrapper1(func):
         def wrapper(*args, **kwargs):
@@ -140,19 +173,24 @@ def perf_test_run_cf(f, compile_mode, repeat, args_all, kwargs_all):
     print("compile_mode:", compile_mode)
     timer.report()
 
-def perf_test_run_bs(f, compile_mode, num_repeat, get_input_fn):
-    bs_list = list(range(2, 18))
+def perf_test_run_bs(orignal, f, compile_mode, num_repeat, get_input_fn):
+    bs_list = list(range(2, 17))
     assert num_repeat % len(bs_list) == 0
     num_repeat_per_bs = num_repeat // len(bs_list)
-    # compile with bs=7 to avoid specialization
-    args, kwargs = get_input_fn(7)
+    # compile with bs=5 to avoid specialization
+    args, kwargs = get_input_fn(5)
     o = f(*args, **kwargs)
+
     for i in range(num_repeat_per_bs):
         for bs in bs_list:
             args, kwargs = get_input_fn(bs)
+            if i == 0:
+                expect = orignal(*args, **kwargs)
             torch.cuda.synchronize()
             o = f(*args, **kwargs)
             torch.cuda.synchronize()
+            if i == 0:
+                assert_equal(expect, o)
     
     profile_start()
     timer = Timer()
@@ -168,6 +206,44 @@ def perf_test_run_bs(f, compile_mode, num_repeat, get_input_fn):
     profile_stop()
     print("compile_mode:", compile_mode)
     timer.report()
+
+def perf_test_run_seq_len(orignal, f, compile_mode, num_repeat, get_input_fn):
+    len_list = list([x * 16 for x in range(2, 17)])
+    assert num_repeat % len(len_list) == 0
+    num_repeat_per_bs = num_repeat // len(len_list)
+    # compile with bs=5 to avoid specialization
+    batch_size = 8
+    args, kwargs = get_input_fn(batch_size, 80)
+    o = f(*args, **kwargs)
+    # print("end!!!!!!!!!!!!!!!!!")
+    # exit(0)
+
+    for i in range(num_repeat_per_bs):
+        for seq_len in len_list:
+            args, kwargs = get_input_fn(batch_size, seq_len)
+            if i == 0:
+                expect = orignal(*args, **kwargs)
+            torch.cuda.synchronize()
+            o = f(*args, **kwargs)
+            torch.cuda.synchronize()
+            if i == 0:
+                assert_equal(expect, o)
+    
+    profile_start()
+    timer = Timer()
+    for i in range(num_repeat_per_bs):
+        for seq_len in len_list:
+            # print("run:", i, bs, flush=True)
+            args, kwargs = get_input_fn(batch_size, seq_len)
+            torch.cuda.synchronize()
+            timer.start()
+            o = f(*args, **kwargs)
+            torch.cuda.synchronize()
+            timer.log()
+    profile_stop()
+    print("compile_mode:", compile_mode)
+    timer.report()
+
 
 # import torch._dynamo.config
 # import logging
@@ -225,6 +301,9 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     elif compile_mode == "sys":
         sys_config.set_config('debug', False)
         compiled = sys_compile(f)
+    elif compile_mode == "sys-dynamic":
+        sys_config.set_config('debug', False)
+        compiled = sys_compile(f)
     elif compile_mode == "sys-xla":
         sys_config.set_config('debug', False)
         sys_config.set_config('backend', 'xla')
@@ -253,11 +332,19 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
         num_graph = 0
 
     if dynamic_mode == 'cf':
-        perf_test_run_cf(compiled, compile_mode, num_repeat, args, kwargs)
+        perf_test_run_cf(f, compiled, compile_mode, num_repeat, args, kwargs)
     elif dynamic_mode == 'bs':
-        perf_test_run_bs(compiled, compile_mode, num_repeat, get_input_fn)
+        if compile_mode == 'sys-dynamic':
+            with enable_dyn_shape():
+                perf_test_run_bs(f, compiled, compile_mode, num_repeat, get_input_fn)
+        else:
+            perf_test_run_bs(f, compiled, compile_mode, num_repeat, get_input_fn)
     elif dynamic_mode == 'len':
-        raise NotImplementedError
+        if compile_mode == 'sys-dynamic':
+            with enable_dyn_shape():
+                perf_test_run_seq_len(f, compiled, compile_mode, num_repeat, get_input_fn)
+        else:
+            perf_test_run_seq_len(f, compiled, compile_mode, num_repeat, get_input_fn)
     else:
         perf_test_run(compiled, compile_mode, num_repeat, args, kwargs)
 

@@ -1,6 +1,6 @@
 import logging
 logging.basicConfig(level=logging.WARNING)
-from frontend.utils import NO_LD_PRELOAD_CTX
+from frontend.no_preload import NO_LD_PRELOAD_CTX
 with NO_LD_PRELOAD_CTX():
     from utils import perf_test
     import argparse
@@ -47,12 +47,12 @@ with NO_LD_PRELOAD_CTX():
         elif args.dyn_bs:
             perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs')
         elif args.dyn_len:
-            raise NotImplementedError
+            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'len')
         else:
             input_args, input_kwargs = module.get_input(batch_size=args.bs)
             perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, None)
 
     if __name__ == "__main__":
-            with torch.no_grad():
-                main()
+        with torch.no_grad():
+            main()
     

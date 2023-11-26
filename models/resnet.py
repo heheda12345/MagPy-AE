@@ -303,11 +303,13 @@ def resnet101() -> ResNet:
     return _resnet(Bottleneck, [3, 4, 23, 3])
 
 
-def resnet101() -> ResNet:
+def resnet152() -> ResNet:
     return _resnet(Bottleneck, [3, 8, 36, 3])
 
 def get_model():
     return resnet101().cuda()
 
 def get_input(batch_size):
-    return (torch.randn(batch_size, 3, 224, 224, device='cuda'),), {}
+    print("getting", batch_size)
+    # return (torch.randn(batch_size, 3, 224, 224, device='cuda'),), {}
+    return (torch.normal(0.5, 0.25, (batch_size, 3, 224, 224), device='cuda'),), {}

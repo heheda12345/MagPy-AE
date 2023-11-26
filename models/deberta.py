@@ -695,10 +695,21 @@ class DisentangledSelfAttention(nn.Module):
         elif relative_pos.dim() != 4:
             raise ValueError(f"Relative position ids must be of dim 2 or 3 or 4. {relative_pos.dim()}")
 
-        att_span = min(max(query_layer.size(-2), key_layer.size(-2)), self.max_relative_positions)
+        # att_span = min(max(query_layer.size(-2), key_layer.size(-2)), self.max_relative_positions)
+        # relative_pos = relative_pos.long().to(query_layer.device)
+        # rel_embeddings = rel_embeddings[
+        #     self.max_relative_positions - att_span : self.max_relative_positions + att_span, :
+        # ].unsqueeze(0)
+
+        # enable dynamo dynamic shape mode
+        att_span = min(max(query_layer.size(-2), key_layer.size(-2)), 512)
+        # att_span = min(max(query_layer.size(-2), key_layer.size(-2)), self.max_relative_positions)
         relative_pos = relative_pos.long().to(query_layer.device)
+        # rel_embeddings = rel_embeddings[
+        #     self.max_relative_positions - att_span : self.max_relative_positions + att_span, :
+        # ].unsqueeze(0)
         rel_embeddings = rel_embeddings[
-            self.max_relative_positions - att_span : self.max_relative_positions + att_span, :
+            512 - att_span : 512 + att_span, :
         ].unsqueeze(0)
 
         score = 0
@@ -791,8 +802,8 @@ class DebertaEmbeddings(nn.Module):
             token_type_embeddings = self.token_type_embeddings(token_type_ids)
             embeddings += token_type_embeddings
 
-        if self.embedding_size != self.config.hidden_size:
-            embeddings = self.embed_proj(embeddings)
+        # if self.embedding_size != self.config.hidden_size:
+        #     embeddings = self.embed_proj(embeddings)
 
         embeddings = self.LayerNorm(embeddings)
 
@@ -1026,13 +1037,12 @@ def get_model():
     return model
 
 
-def get_input(batch_size):
+def get_input(batch_size, seq_len=256):
     # tokenizer = AutoTokenizer.from_pretrained(model_name)
     # inputs = tokenizer("Hello world! Hello world! Hello world! Hello world! Hello world!", return_tensors="pt").to(device)
     # assert len(inputs) == 3
     # return (inputs['input_ids'], inputs['attention_mask'], inputs['token_type_ids']), {}
     vocab_size = 50265
-    seq_len = 256
     input_ids = torch.randint(0, vocab_size, (batch_size, seq_len), dtype=torch.int64).to(device)
     attention_mask = torch.ones((batch_size, seq_len), dtype=torch.int64).to(device)
     token_type_ids = torch.zeros((batch_size, seq_len), dtype=torch.int64).to(device)

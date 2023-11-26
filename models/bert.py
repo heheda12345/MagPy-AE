@@ -374,11 +374,12 @@ def get_model():
     return model
 
 
-def get_input(batch_size):
-    inputs = torch.randn((batch_size, 512, 768), device='cuda')
+def get_input(batch_size, seq_len=256):
+    inputs = torch.randn((batch_size, seq_len, 768), device='cuda')
     return (inputs,), {}
 
-def get_dynamic_seqlen(seq_len):
-    batch_size = 16
-    inputs = torch.randn((batch_size, seq_len, 768)).cuda()
-    return (inputs,), {}
+
+# if __name__ == '__main__':
+#     model = get_model()
+#     input_args, input_kwargs = get_input(8, 80)
+#     model(*input_args, **input_kwargs)
