@@ -310,4 +310,4 @@ def get_model():
     return resnet101().cuda()
 
 def get_input(batch_size):
-    return (torch.randn(batch_size, 3, 224, 224).cuda(),), {}
+    return (torch.randn(batch_size, 3, 224, 224, device='cuda'),), {}
