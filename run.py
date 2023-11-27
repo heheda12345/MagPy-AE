@@ -19,6 +19,7 @@ with NO_LD_PRELOAD_CTX():
     parser.add_argument("--dyn_bs", action="store_true")
     parser.add_argument("--dyn_len", action="store_true")
     parser.add_argument("--repeat", type=int, default=100)
+    parser.add_argument("--no_check", dest="check", action="store_false")
 
     args = parser.parse_args()
     print(args)
@@ -45,12 +46,12 @@ with NO_LD_PRELOAD_CTX():
             input_args, input_kwargs = module.get_dynamic_inputs(args.bs, 2 * args.repeat)
             perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, 'cf')
         elif args.dyn_bs:
-            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs')
+            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs', args.check)
         elif args.dyn_len:
-            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'len')
+            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'len', args.check)
         else:
             input_args, input_kwargs = module.get_input(batch_size=args.bs)
-            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, None)
+            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, None, args.check)
 
     if __name__ == "__main__":
         with torch.no_grad():

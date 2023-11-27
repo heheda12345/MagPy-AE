@@ -2,7 +2,7 @@ import torch
 from transformers import BertConfig
 import logging
 import numpy as np
-import onnx
+# import onnx
 import time
 
 import math

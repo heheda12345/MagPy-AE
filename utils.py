@@ -250,7 +250,7 @@ def perf_test_run_seq_len(orignal, f, compile_mode, num_repeat, get_input_fn):
 # torch._dynamo.config.verbose=True
 # torch._dynamo.config.output_code=True
 
-def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_mode):
+def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_mode, check):
     # logging.basicConfig(level=logging.INFO, force=True)
     if compile_mode == "trace":
         # only when kwargs is empty
@@ -330,7 +330,7 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     global num_graph
     if compile_mode == "dynamo_graph":
         num_graph = 0
-
+    if not check: f = compiled
     if dynamic_mode == 'cf':
         perf_test_run_cf(f, compiled, compile_mode, num_repeat, args, kwargs)
     elif dynamic_mode == 'bs':
