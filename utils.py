@@ -260,6 +260,10 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     elif compile_mode == "dynamo":
         torch._dynamo.reset()
         compiled = torch.compile(f)
+    elif compile_mode == "dynamo-tensorrt":
+        import torch_tensorrt
+        torch._dynamo.reset()
+        compiled = torch_tensorrt.dynamo.compile(f, *args, **kwargs)
     elif compile_mode == "dynamo-xla":
         torch._dynamo.reset()
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
