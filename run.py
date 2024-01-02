@@ -10,6 +10,9 @@ with NO_LD_PRELOAD_CTX():
     import torch
     import numpy as np
     import torch_xla.core.xla_model as xm
+    import torch
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--compile", type=str, default="sys")
@@ -44,7 +47,7 @@ with NO_LD_PRELOAD_CTX():
         if args.dyn_cf:
             assert hasattr(module, 'get_dynamic_inputs')
             input_args, input_kwargs = module.get_dynamic_inputs(args.bs, 2 * args.repeat)
-            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, 'cf')
+            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, 'cf', args.check)
         elif args.dyn_bs:
             perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs', args.check)
         elif args.dyn_len:

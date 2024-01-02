@@ -11,6 +11,8 @@ from frontend import config as sys_config
 from frontend.utils import enable_dyn_shape
 from frontend.compile import compile as sys_compile
 import logging
+import os
+import sys
 import torch_xla.core.xla_model as xm
 import torch._dynamo.backends.torchxla
 
@@ -44,6 +46,128 @@ def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor])
     # print("example_inputs:", example_inputs)
     num_graph += 1
     return gm.forward
+
+def onnx_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+    global num_graph
+    real_inputs = tuple([torch.rand(x.shape, dtype=x.dtype, layout=x.layout, device=x.device) for x in  example_inputs])
+    input_names = tuple([f"input_{i}" for i in range(len(real_inputs))])
+    model_path = f"tmp/onnx_graph_{num_graph}.onnx"
+    import onnx
+    import onnxruntime as ort
+    def load_model(model_path):
+        onnx_model = onnx.load(model_path)
+        print(onnx.helper.printable_graph(onnx_model.graph))
+        # print(onnx_model.graph.value_info)
+        onnx.checker.check_model(onnx_model)
+        print(f"{model_path}: check passed!")
+        onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
+        session = ort.InferenceSession(model_path)
+
+        inputs_name = [item.name for item in onnx_model.graph.input]
+        outputs_name = [item.name for item in onnx_model.graph.output]
+        return session, inputs_name, outputs_name
+    torch.onnx.export(gm, real_inputs, model_path, verbose=True, opset_version=12, input_names=input_names, training=torch.onnx.TrainingMode.TRAINING, do_constant_folding=False)
+    session, onnx_input_names, outputs_name = load_model(model_path)
+    def fn(*args):
+        ort_inputs = {
+            onnx_input_names[i]: args[i].contiguous().cpu().detach().numpy() for i in range(len(args))
+        }
+        ort_outputs = session.run(outputs_name, ort_inputs)
+        output_gm = list(gm.forward(*args))
+        output_ort = list([torch.from_numpy(item).cuda() for item in ort_outputs])
+        assert_equal(output_gm, output_ort)
+        return output_ort
+    num_graph += 1
+    return fn
+
+
+def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+    print("start nnf backend", flush=True)
+    global num_graph
+    num_graph += 1
+    real_inputs = tuple([torch.rand(x.shape, dtype=x.dtype, layout=x.layout, device=x.device) for x in  example_inputs])
+    input_names = tuple([f"input_{i}" for i in range(len(real_inputs))])
+    model_path = f"tmp/onnx_graph_{num_graph}.onnx"
+    print("start onnx export", flush=True)
+    torch.onnx.export(gm, real_inputs, model_path, verbose=True, opset_version=12, input_names=input_names, training=torch.onnx.TrainingMode.TRAINING, do_constant_folding=False) # should be do_constant_folding=False
+    print("end onnx export", flush=True)
+    print("gm", gm.graph)
+    for node in gm.graph.nodes:
+        if node.name == "self_avg":
+            return gm.forward
+
+    import onnx
+    import onnxruntime as ort
+    def load_ort_session(model_path):
+        onnx_model = onnx.load(model_path)
+        print(onnx.helper.printable_graph(onnx_model.graph))
+        # print(onnx_model.graph.value_info)
+        onnx.checker.check_model(onnx_model)
+        print(f"{model_path}: check passed!")
+        onnx_model = onnx.shape_inference.infer_shapes(onnx_model)
+        session = ort.InferenceSession(model_path)
+
+        inputs_name = [item.name for item in onnx_model.graph.input]
+        outputs_name = [item.name for item in onnx_model.graph.output]
+        return session, inputs_name, outputs_name
+    
+    NNFUSION_ROOT = os.path.expanduser("~/nnfusion-for-frontend")
+    os.environ["PATH"] = os.path.abspath(NNFUSION_ROOT) + ":" + os.environ["PATH"]
+    sys.path.insert(1, os.path.abspath(NNFUSION_ROOT + "/src/python"))
+    from nnfusion.session import codegen, modify_nnfusion_rt, build
+    from nnfusion.executor import Executor
+    from nnfusion.data_format import cast_pytorch_tensor
+    def build_nnfusion(onnx_model_path, codegen_flags, workdir, rt_dir):
+        flags_str = "-f onnx "
+        flags_str += " ".join([
+            "-f{}={}".format(k, v) for k, v in codegen_flags.items()
+        ])
+        os.system(f"rm -r {workdir}")
+        os.system(f"mkdir -p {workdir}")
+        codegen(onnx_model_path, flags_str, workdir)
+        # os.system(f"cat {workdir}/codegen.log ")
+        modify_nnfusion_rt(rt_dir)
+        build(rt_dir)
+    def load_executor(model_path: str):
+        assert(model_path.endswith('.onnx'))
+        workdir = os.path.abspath(model_path[:-5])
+        codegen_flags = {
+            "autodiff": False,  # add backward graph
+            "training_mode": False,  # move weight external
+            "extern_result_memory": True, # move result external
+            "codegen_unexist_kernel": True, # generate kernel for unexist op
+            "product_name": "A100",
+            "default_device": "CUDA",
+            "kernel_cache_path": os.path.expanduser("~/.cache/nnfusion/kernel_cache.db"),
+            'biasadd_fix': True,
+            'check_result': True,
+            'conv_cnhw': True,
+            'max_grid_dim': 256,
+            'cf_level': 2,
+            'branch_fine_grained': False,
+            'branch_split': False,
+            'log_kerneldb_request': False
+        }
+        rt_dir = os.path.join(workdir, "nnfusion_rt/cuda_codegen")
+        build_nnfusion(model_path, codegen_flags, workdir, rt_dir)
+        executor = Executor(rt_dir)
+        return executor
+
+    executor = load_executor(model_path)
+
+    def fn(*args):
+        inputs = [cast_pytorch_tensor(item) for item in args]
+        input_signatures = [x.pointer_type for x in inputs]
+        input_pointers = [x.pointer for x in inputs]
+        output_tensors = executor.alloc_output_buffer()
+        output_casted = [cast_pytorch_tensor(x) for x in output_tensors]
+        output_signatures = [x.pointer_type for x in output_casted]
+        output_pointers = [x.pointer for x in output_casted]
+        signatures = input_signatures + output_signatures
+        pointers = input_pointers + output_pointers
+        executor.feed_pointers(signatures, pointers)
+        return output_tensors
+    return fn
 
 
 def explain(compiled_func, *args, **kwargs):
@@ -153,20 +277,20 @@ def perf_test_run(f, compile_mode, repeat, args, kwargs):
     timer.report()
 
 
-def perf_test_run_cf(f, compile_mode, repeat, args_all, kwargs_all):
+def perf_test_run_cf(f, compiled, compile_mode, repeat, args_all, kwargs_all):
     for idx in range(repeat):
-        print("warmup:", idx)
+        o1 = f(*args_all[idx], **kwargs_all[idx])
         torch.cuda.synchronize()
-        o = f(*args_all[idx], **kwargs_all[idx])
+        o2 = compiled(*args_all[idx], **kwargs_all[idx])
         torch.cuda.synchronize()
-    
+        assert_equal(o1, o2)
+
     profile_start()
-    timer = Timer()
     for idx in range(repeat):
-        print("run:", idx)
+        # print("run:", idx)
         torch.cuda.synchronize()
         timer.start()
-        o = f(*args_all[idx], **kwargs_all[idx])
+        o = compiled(*args_all[idx], **kwargs_all[idx])
         torch.cuda.synchronize()
         timer.log()
     profile_stop()
@@ -263,7 +387,7 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     elif compile_mode == "dynamo-tensorrt":
         import torch_tensorrt
         torch._dynamo.reset()
-        compiled = torch_tensorrt.dynamo.compile(f, *args, **kwargs)
+        compiled = torch_tensorrt.dynamo.compile(f, args)
     elif compile_mode == "dynamo-xla":
         torch._dynamo.reset()
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
@@ -278,14 +402,17 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     elif compile_mode == "dynamo-dynamic":
         torch._dynamo.reset()
         compiled = torch.compile(f, dynamic=True)
-    elif compile_mode == "dynamo_graph":
+    elif compile_mode == "dynamo-graph":
         torch._dynamo.reset()
-        if dynamic_input:
-            explain(f, *args[0], **kwargs[0])
-        else:
-            explain(f, *args, **kwargs)
+        explain(f, *args, **kwargs)
         torch._dynamo.reset()
         compiled = torch.compile(f, backend=custom_backend)
+    elif compile_mode == "dynamo-onnx":
+        torch._dynamo.reset()
+        compiled = torch.compile(f, backend=onnx_backend)
+    elif compile_mode == "dynamo-nnf":
+        torch._dynamo.reset()
+        compiled = torch.compile(f, backend=nnf_backend)
     elif compile_mode == "eager":
         compiled = f
     elif compile_mode == "fxtrace":
@@ -332,7 +459,7 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     else:
         raise NotImplementedError
     global num_graph
-    if compile_mode == "dynamo_graph":
+    if compile_mode == "dynamo-graph" or compile_mode == "dynamo-onnx":
         num_graph = 0
     if not check: f = compiled
     if dynamic_mode == 'cf':
