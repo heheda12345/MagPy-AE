@@ -131,8 +131,8 @@ class DenseNet(nn.Module):
             self.features.add_module('denseblock%d' % (i + 1), block)
             num_features = num_features + num_layers * growth_rate
             if i != len(block_config) - 1:
-                trans = _Transition(num_input_features=num_features,
-                                    num_output_features=num_features // 2)
+                trans = torch.jit.script(_Transition(num_input_features=num_features,
+                                    num_output_features=num_features // 2))
                 self.features.add_module('transition%d' % (i + 1), trans)
                 num_features = num_features // 2
 
@@ -243,12 +243,9 @@ def densenet201(pretrained=False, progress=True, **kwargs):
                      **kwargs)
 
 
-def get_model():
-    return densenet121(pretrained=False).cuda()
-
-def get_scripted_model():
-    from ._densenet_scripted import _get_scripted_model
-    return _get_scripted_model()
+def _get_scripted_model():
+    model = densenet121(pretrained=False).cuda()
+    return model
 
 def get_input(batch_size):
     return (torch.randn((batch_size, 3, 224, 224)).cuda(),), {}
