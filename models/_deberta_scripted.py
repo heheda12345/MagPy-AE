@@ -298,7 +298,7 @@ class DebertaAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.self = DisentangledSelfAttention(config)
-        self.output = DebertaSelfOutput(config)
+        self.output = torch.jit.script(DebertaSelfOutput(config))
         self.config = config
 
     def forward(
@@ -365,8 +365,8 @@ class DebertaLayer(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.attention = DebertaAttention(config)
-        self.intermediate = DebertaIntermediate(config)
-        self.output = DebertaOutput(config)
+        self.intermediate = torch.jit.script(DebertaIntermediate(config))
+        self.output = torch.jit.script(DebertaOutput(config))
 
     def forward(
         self,
@@ -766,7 +766,7 @@ class DebertaEmbeddings(nn.Module):
 
         if self.embedding_size != config.hidden_size:
             self.embed_proj = nn.Linear(self.embedding_size, config.hidden_size, bias=False)
-        self.LayerNorm = DebertaLayerNorm(config.hidden_size, config.layer_norm_eps)
+        self.LayerNorm = torch.jit.script(DebertaLayerNorm(config.hidden_size, config.layer_norm_eps))
         self.dropout = StableDropout(config.hidden_dropout_prob)
         self.config = config
 
@@ -1029,17 +1029,12 @@ class DebertaModel(DebertaPreTrainedModel):
 model_name = "microsoft/deberta-base"
 device = "cuda:0"
 
-def get_model():
+def _get_scripted_model():
     config = AutoConfig.from_pretrained(model_name)
     config.return_dict = False
     model = DebertaModel(config).to(device)
     print("model type", type(model))
     return model
-
-def get_scripted_model():
-    from ._deberta_scripted import _get_scripted_model
-    return _get_scripted_model()
-
 
 def get_input(batch_size, seq_len=256):
     # tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -1054,7 +1049,7 @@ def get_input(batch_size, seq_len=256):
 
 
 if __name__ == "__main__":
-    model = get_model()
+    model = _get_scripted_model()
     input_args, input_kwargs = get_input(batch_size=1)
     print([x.shape for x in input_args])
     outputs = model(*input_args, **input_kwargs)
