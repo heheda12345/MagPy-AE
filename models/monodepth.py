@@ -13,9 +13,14 @@ class conv(nn.Module):
         self.kernel_size = kernel_size
         self.conv_base = nn.Conv2d(num_in_layers, num_out_layers, kernel_size=kernel_size, stride=stride)
         self.normalize = nn.BatchNorm2d(num_out_layers)
+    
+    @torch.jit.ignore
+    def _get_p(self) -> int:
+        p = int(np.floor((self.kernel_size-1)/2))
+        return p
 
     def forward(self, x):
-        p = int(np.floor((self.kernel_size-1)/2))
+        p = self._get_p()
         p2d = (p, p, p, p)
         x = self.conv_base(F.pad(x, p2d))
         x = self.normalize(x)
@@ -38,8 +43,13 @@ class maxpool(nn.Module):
         super(maxpool, self).__init__()
         self.kernel_size = kernel_size
 
+    @torch.jit.ignore
+    def _get_p(self) -> int:
+        p = int(np.floor((self.kernel_size-1)/2))
+        return p
+
     def forward(self, x):
-        p = int(np.floor((self.kernel_size-1) / 2))
+        p = self._get_p()
         p2d = (p, p, p, p)
         return F.max_pool2d(F.pad(x, p2d), self.kernel_size, stride=2)
 
@@ -83,7 +93,6 @@ class resconv_basic(nn.Module):
     def forward(self, x):
         #         do_proj = x.size()[1] != self.num_out_layers or self.stride == 2
         do_proj = True
-        shortcut = []
         x_out = self.conv1(x)
         x_out = self.conv2(x_out)
         if do_proj:
@@ -113,7 +122,7 @@ def resblock_basic(num_in_layers, num_out_layers, num_blocks, stride):
 class upconv(nn.Module):
     def __init__(self, num_in_layers, num_out_layers, kernel_size, scale):
         super(upconv, self).__init__()
-        self.scale = scale
+        self.scale = float(scale)
         self.conv1 = conv(num_in_layers, num_out_layers, kernel_size, 1)
 
     def forward(self, x):
@@ -290,30 +299,35 @@ class Resnet18_md(nn.Module):
         upconv4 = self.upconv4(iconv5)
         concat4 = torch.cat((upconv4, skip3), 1)
         iconv4 = self.iconv4(concat4)
-        self.disp4 = self.disp4_layer(iconv4)
-        self.udisp4 = nn.functional.interpolate(self.disp4, scale_factor=2, mode='bilinear', align_corners=True)
+        disp4 = self.disp4_layer(iconv4)
+        udisp4 = nn.functional.interpolate(disp4, scale_factor=2.0, mode='bilinear', align_corners=True)
 
         upconv3 = self.upconv3(iconv4)
-        concat3 = torch.cat((upconv3, skip2, self.udisp4), 1)
+        concat3 = torch.cat((upconv3, skip2, udisp4), 1)
         iconv3 = self.iconv3(concat3)
-        self.disp3 = self.disp3_layer(iconv3)
-        self.udisp3 = nn.functional.interpolate(self.disp3, scale_factor=2, mode='bilinear', align_corners=True)
+        disp3 = self.disp3_layer(iconv3)
+        udisp3 = nn.functional.interpolate(disp3, scale_factor=2.0, mode='bilinear', align_corners=True)
 
         upconv2 = self.upconv2(iconv3)
-        concat2 = torch.cat((upconv2, skip1, self.udisp3), 1)
+        concat2 = torch.cat((upconv2, skip1, udisp3), 1)
         iconv2 = self.iconv2(concat2)
-        self.disp2 = self.disp2_layer(iconv2)
-        self.udisp2 = nn.functional.interpolate(self.disp2, scale_factor=2, mode='bilinear', align_corners=True)
+        disp2 = self.disp2_layer(iconv2)
+        udisp2 = nn.functional.interpolate(disp2, scale_factor=2.0, mode='bilinear', align_corners=True)
 
         upconv1 = self.upconv1(iconv2)
-        concat1 = torch.cat((upconv1, self.udisp2), 1)
+        concat1 = torch.cat((upconv1, udisp2), 1)
         iconv1 = self.iconv1(concat1)
-        self.disp1 = self.disp1_layer(iconv1)
-        return self.disp1, self.disp2, self.disp3, self.disp4
+        disp1 = self.disp1_layer(iconv1)
+        return disp1, disp2, disp3, disp4
 
 
 def get_model():
     return Resnet18_md(3).cuda()
+
+def get_scripted_model():
+    model = get_model()
+    model = torch.jit.script(model)
+    return model
 
 
 def get_input(batch_size):
