@@ -630,30 +630,32 @@ class Bottleneck(nn.Module):
 
     def __init__(self, inplanes, planes, stride=1, downsample=None, batch_norm=True):
         super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=not batch_norm)
-        self.bn1 = depBatchNorm2d(batch_norm, planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=not batch_norm, groups=32)
-        self.bn2 = depBatchNorm2d(batch_norm, planes)
-        self.conv3 = nn.Conv2d(planes, planes * 2, kernel_size=1, bias=not batch_norm)
-        self.bn3 = depBatchNorm2d(batch_norm, planes * 2)
-        self.relu = nn.ReLU(inplace=True)
+        conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=not batch_norm)
+        bn1 = depBatchNorm2d(batch_norm, planes)
+        conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=not batch_norm, groups=32)
+        bn2 = depBatchNorm2d(batch_norm, planes)
+        conv3 = nn.Conv2d(planes, planes * 2, kernel_size=1, bias=not batch_norm)
+        bn3 = depBatchNorm2d(batch_norm, planes * 2)
+        relu = nn.ReLU(inplace=True)
+        self.seq = torch.jit.script(nn.Sequential(conv1, bn1, relu, conv2, bn2, relu, conv3, bn3))
         self.downsample = downsample
         self.stride = stride
 
     def forward(self, x):
         residual = x
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-        out = self.conv3(out)
-        out = self.bn3(out)
+        # out = self.conv1(x)
+        # out = self.bn1(out)
+        # out = self.relu(out)
+        # out = self.conv2(out)
+        # out = self.bn2(out)
+        # out = self.relu(out)
+        # out = self.conv3(out)
+        # out = self.bn3(out)
+        out = self.seq(x)
         if self.downsample is not None:
             residual = self.downsample(x)
         out += residual
-        out = self.relu(out)
+        out = F.relu(out, inplace=True)
         return out
 
 
@@ -829,13 +831,10 @@ class ResNeXt_cifar10(ResNeXt):
         self.regime = [{'epoch': 0, 'optimizer': 'SGD', 'lr': 0.1, 'weight_decay': 0.0001, 'momentum': 0.9}, {'epoch': 81, 'lr': 0.01}, {'epoch': 122, 'lr': 0.001, 'weight_decay': 0}, {'epoch': 164, 'lr': 0.0001}]
 
 
-def get_model():
+def _get_scripted_model():
     # ResNeXt_imagenet has lower speedup
-    return ResNet_imagenet().cuda()
-
-def get_scripted_model():
-    from ._quantized_scripted import _get_scripted_model
-    return _get_scripted_model()
+    model = ResNet_imagenet().cuda()
+    return model
 
 
 def get_input(batch_size):
