@@ -381,6 +381,8 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
         if len(kwargs) > 0:
             raise ValueError("kwargs must be empty when compile_mode is trace")
         compiled = torch.jit.trace(f, args, strict=False)
+    elif compile_mode == "script":
+        compiled = f
     elif compile_mode == "dynamo":
         torch._dynamo.reset()
         compiled = torch.compile(f)

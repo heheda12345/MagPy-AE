@@ -34,7 +34,10 @@ with NO_LD_PRELOAD_CTX():
 
     def main():
         module = importlib.import_module("."+args.model, package="models")
-        if hasattr(module, 'get_model'):
+        if args.compile == "script":
+            assert hasattr(module, 'get_scripted_model')
+            model = module.get_scripted_model()
+        elif hasattr(module, 'get_model'):
             model = module.get_model()
         elif hasattr(module, 'get_model_with_bs'):
             model = module.get_model_with_bs(args.bs)
