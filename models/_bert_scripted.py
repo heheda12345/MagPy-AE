@@ -81,7 +81,7 @@ class BertSelfAttention(nn.Module):
         head_mask: Optional[torch.FloatTensor] = None,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
-        past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        past_key_value: Optional[Tuple[torch.FloatTensor, torch.FloatTensor]] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor]:
         mixed_query_layer = self.query(hidden_states)
@@ -97,6 +97,7 @@ class BertSelfAttention(nn.Module):
             value_layer = past_key_value[1]
             attention_mask = encoder_attention_mask
         elif is_cross_attention:
+            assert encoder_hidden_states is not None
             key_layer = self.transpose_for_scores(self.key(encoder_hidden_states))
             value_layer = self.transpose_for_scores(self.value(encoder_hidden_states))
             attention_mask = encoder_attention_mask
@@ -196,7 +197,7 @@ class BertAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None):
         super().__init__()
         self.self = BertSelfAttention(config, position_embedding_type=position_embedding_type)
-        self.output = BertSelfOutput(config)
+        self.output = torch.jit.script(BertSelfOutput(config))
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -282,8 +283,8 @@ class BertLayer(nn.Module):
             if not self.is_decoder:
                 raise ValueError(f"{self} should be used as a decoder model if cross attention is added")
             self.crossattention = BertAttention(config, position_embedding_type="absolute")
-        self.intermediate = BertIntermediate(config)
-        self.output = BertOutput(config)
+        self.intermediate = torch.jit.script(BertIntermediate(config))
+        self.output = torch.jit.script(BertOutput(config))
 
     def forward(
         self,
@@ -368,14 +369,10 @@ class BertModel(torch.nn.Module):
         return x[0]
 
 
-def get_model():
+def _get_scripted_model():
     model = BertModel(BertConfig(vocab_size=32768, hidden_size=768,
                                  num_hidden_layers=12, num_attention_heads=12, intermediate_size=3072, return_dict=False)).cuda()
     return model
-
-def get_scripted_model():
-    from ._bert_scripted import _get_scripted_model
-    return _get_scripted_model()
 
 def get_input(batch_size, seq_len=256):
     inputs = torch.randn((batch_size, seq_len, 768), device='cuda')
