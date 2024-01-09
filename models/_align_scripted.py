@@ -565,24 +565,24 @@ class AlignVisionBlock(nn.Module):
                 config=config, in_dim=in_dim, out_dim=expand_in_dim, stride=stride
             )
 
-        self.depthwise_conv = AlignVisionDepthwiseLayer(
+        self.depthwise_conv = torch.jit.script(AlignVisionDepthwiseLayer(
             config=config,
             in_dim=expand_in_dim if self.expand else in_dim,
             stride=stride,
             kernel_size=kernel_size,
             adjust_padding=adjust_padding,
-        )
-        self.squeeze_excite = AlignVisionSqueezeExciteLayer(
+        ))
+        self.squeeze_excite = torch.jit.script(AlignVisionSqueezeExciteLayer(
             config=config, in_dim=in_dim, expand_dim=expand_in_dim, expand=self.expand
-        )
-        self.projection = AlignVisionFinalBlockLayer(
+        ))
+        self.projection = torch.jit.script(AlignVisionFinalBlockLayer(
             config=config,
             in_dim=expand_in_dim if self.expand else in_dim,
             out_dim=out_dim,
             stride=stride,
             drop_rate=drop_rate,
             id_skip=id_skip,
-        )
+        ))
 
     def forward(self, hidden_states: torch.FloatTensor) -> torch.Tensor:
         embeddings = hidden_states
@@ -703,6 +703,7 @@ class AlignTextEmbeddings(nn.Module):
         if input_ids is not None:
             input_shape = input_ids.size()
         else:
+            assert inputs_embeds is not None
             input_shape = inputs_embeds.size()[:-1]
 
         seq_length = input_shape[1]
@@ -722,6 +723,7 @@ class AlignTextEmbeddings(nn.Module):
                 token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=self.position_ids.device)
 
         if inputs_embeds is None:
+            assert input_ids is not None
             inputs_embeds = self.word_embeddings(input_ids)
         token_type_embeddings = self.token_type_embeddings(token_type_ids)
 
@@ -774,7 +776,7 @@ class AlignTextSelfAttention(nn.Module):
         head_mask: Optional[torch.FloatTensor] = None,
         encoder_hidden_states: Optional[torch.FloatTensor] = None,
         encoder_attention_mask: Optional[torch.FloatTensor] = None,
-        past_key_value: Optional[Tuple[Tuple[torch.FloatTensor]]] = None,
+        past_key_value: Optional[Tuple[torch.FloatTensor, torch.FloatTensor]] = None,
         output_attentions: Optional[bool] = False,
     ) -> Tuple[torch.Tensor]:
         mixed_query_layer = self.query(hidden_states)
@@ -790,6 +792,7 @@ class AlignTextSelfAttention(nn.Module):
             value_layer = past_key_value[1]
             attention_mask = encoder_attention_mask
         elif is_cross_attention:
+            assert encoder_hidden_states is not None
             key_layer = self.transpose_for_scores(self.key(encoder_hidden_states))
             value_layer = self.transpose_for_scores(self.value(encoder_hidden_states))
             attention_mask = encoder_attention_mask
@@ -889,7 +892,7 @@ class AlignTextAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None):
         super().__init__()
         self.self = AlignTextSelfAttention(config, position_embedding_type=position_embedding_type)
-        self.output = AlignTextSelfOutput(config)
+        self.output = torch.jit.script(AlignTextSelfOutput(config))
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -978,8 +981,8 @@ class AlignTextLayer(nn.Module):
             if not self.is_decoder:
                 raise ValueError(f"{self} should be used as a decoder model if cross attention is added")
             self.crossattention = AlignTextAttention(config, position_embedding_type="absolute")
-        self.intermediate = AlignTextIntermediate(config)
-        self.output = AlignTextOutput(config)
+        self.intermediate = torch.jit.script(AlignTextIntermediate(config))
+        self.output = torch.jit.script(AlignTextOutput(config))
 
     def forward(
         self,
@@ -1212,10 +1215,10 @@ class AlignTextModel(AlignPreTrainedModel):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = AlignTextEmbeddings(config)
+        self.embeddings = torch.jit.script(AlignTextEmbeddings(config))
         self.encoder = AlignTextEncoder(config)
 
-        self.pooler = AlignTextPooler(config) if add_pooling_layer else None
+        self.pooler = torch.jit.script(AlignTextPooler(config)) if add_pooling_layer else None
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -1337,7 +1340,7 @@ class AlignVisionModel(AlignPreTrainedModel):
     def __init__(self, config: AlignVisionConfig):
         super().__init__(config)
         self.config = config
-        self.embeddings = AlignVisionEmbeddings(config)
+        self.embeddings = torch.jit.script(AlignVisionEmbeddings(config))
         self.encoder = AlignVisionEncoder(config)
 
         # Final pooling layer
@@ -1646,17 +1649,11 @@ model_name = "kakaobrain/align-base"
 device = "cuda:0"
 # device = "cpu"
 
-def get_model():
+def _get_scripted_model():
     config = AlignConfig.from_pretrained(model_name)
     model = AlignModel.from_pretrained("kakaobrain/align-base",
                                        return_dict=False).cuda()
     return model
-
-
-def get_scripted_model():
-    from ._align_scripted import _get_scripted_model
-    return _get_scripted_model()
-
 
 def get_input(batch_size):
     seq_len = 64
@@ -1686,7 +1683,7 @@ def get_input(batch_size):
 
 if __name__ == "__main__":
     with torch.no_grad():
-        model = get_model().eval()
+        model = _get_scripted_model().eval()
         input_args, input_kwargs = get_input(batch_size=1)
         outputs = model(*input_args, **input_kwargs)
         print(outputs)
