@@ -309,6 +309,11 @@ def resnet152() -> ResNet:
 def get_model():
     return resnet101().cuda()
 
+def get_scripted_model():
+    model = resnet101().cuda()
+    model = torch.jit.script(model)
+    return model
+
 def get_input(batch_size):
     print("getting", batch_size)
     # return (torch.randn(batch_size, 3, 224, 224, device='cuda'),), {}
