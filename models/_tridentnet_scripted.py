@@ -1293,6 +1293,11 @@ class Bottleneck(BaseModule):
                 planes, self.after_conv2_plugins)
             self.after_conv3_plugin_names = self.make_block_plugins(
                 planes * self.expansion, self.after_conv3_plugins)
+        
+
+        self.seq1 = torch.jit.script(nn.Sequential(self.conv1, self.norm1, self.relu))
+        self.seq2 = torch.jit.script(nn.Sequential(self.conv2, self.norm2, self.relu))
+        self.seq3 = torch.jit.script(nn.Sequential(self.conv3, self.norm3))
 
     def make_block_plugins(self, in_channels, plugins):
         """make plugins for block.
@@ -1337,43 +1342,46 @@ class Bottleneck(BaseModule):
     def norm3(self):
         """nn.Module: normalization layer after the third convolution layer"""
         return getattr(self, self.norm3_name)
+    
+    def _inner_forward(self, x):
+        identity = x
+        # out = self.conv1(x)
+        # out = self.norm1(out)
+        # out = self.relu(out)
+        out = self.seq1(x)
+
+        if self.with_plugins:
+            out = self.forward_plugin(out, self.after_conv1_plugin_names)
+
+        # out = self.conv2(out)
+        # out = self.norm2(out)
+        # out = self.relu(out)
+        out = self.seq2(out)
+
+        if self.with_plugins:
+            out = self.forward_plugin(out, self.after_conv2_plugin_names)
+
+        # out = self.conv3(out)
+        # out = self.norm3(out)
+        out = self.seq3(out)
+
+        if self.with_plugins:
+            out = self.forward_plugin(out, self.after_conv3_plugin_names)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+
+        return out
+
 
     def forward(self, x):
         """Forward function."""
-
-        def _inner_forward(x):
-            identity = x
-            out = self.conv1(x)
-            out = self.norm1(out)
-            out = self.relu(out)
-
-            if self.with_plugins:
-                out = self.forward_plugin(out, self.after_conv1_plugin_names)
-
-            out = self.conv2(out)
-            out = self.norm2(out)
-            out = self.relu(out)
-
-            if self.with_plugins:
-                out = self.forward_plugin(out, self.after_conv2_plugin_names)
-
-            out = self.conv3(out)
-            out = self.norm3(out)
-
-            if self.with_plugins:
-                out = self.forward_plugin(out, self.after_conv3_plugin_names)
-
-            if self.downsample is not None:
-                identity = self.downsample(x)
-
-            out += identity
-
-            return out
-
         if self.with_cp and x.requires_grad:
-            out = cp.checkpoint(_inner_forward, x)
+            out = cp.checkpoint(self._inner_forward, x)
         else:
-            out = _inner_forward(x)
+            out = self._inner_forward(x)
 
         out = self.relu(out)
 
@@ -1861,54 +1869,53 @@ class TridentBottleneck(Bottleneck):
                 distribution='uniform',
                 mode='fan_in',
                 override=dict(name='conv2')))
+    
+    def _inner_forward(self, x):
+        num_branch = (
+            self.num_branch
+            if self.training or self.test_branch_idx == -1 else 1)
+        identity = x
+        if not isinstance(x, list):
+            x = (x, ) * num_branch
+            identity = x
+            if self.downsample is not None:
+                identity = [self.downsample(b) for b in x]
+
+        out = [self.conv1(b) for b in x]
+        out = [self.norm1(b) for b in out]
+        out = [self.relu(b) for b in out]
+
+        if self.with_plugins:
+            for k in range(len(out)):
+                out[k] = self.forward_plugin(out[k],
+                                             self.after_conv1_plugin_names)
+
+        out = self.conv2(out)
+        out = [self.norm2(b) for b in out]
+        out = [self.relu(b) for b in out]
+        if self.with_plugins:
+            for k in range(len(out)):
+                out[k] = self.forward_plugin(out[k],
+                                             self.after_conv2_plugin_names)
+
+        out = [self.conv3(b) for b in out]
+        out = [self.norm3(b) for b in out]
+
+        if self.with_plugins:
+            for k in range(len(out)):
+                out[k] = self.forward_plugin(out[k],
+                                             self.after_conv3_plugin_names)
+
+        out = [
+            out_b + identity_b for out_b, identity_b in zip(out, identity)
+        ]
+        return out
 
     def forward(self, x):
-
-        def _inner_forward(x):
-            num_branch = (
-                self.num_branch
-                if self.training or self.test_branch_idx == -1 else 1)
-            identity = x
-            if not isinstance(x, list):
-                x = (x, ) * num_branch
-                identity = x
-                if self.downsample is not None:
-                    identity = [self.downsample(b) for b in x]
-
-            out = [self.conv1(b) for b in x]
-            out = [self.norm1(b) for b in out]
-            out = [self.relu(b) for b in out]
-
-            if self.with_plugins:
-                for k in range(len(out)):
-                    out[k] = self.forward_plugin(out[k],
-                                                 self.after_conv1_plugin_names)
-
-            out = self.conv2(out)
-            out = [self.norm2(b) for b in out]
-            out = [self.relu(b) for b in out]
-            if self.with_plugins:
-                for k in range(len(out)):
-                    out[k] = self.forward_plugin(out[k],
-                                                 self.after_conv2_plugin_names)
-
-            out = [self.conv3(b) for b in out]
-            out = [self.norm3(b) for b in out]
-
-            if self.with_plugins:
-                for k in range(len(out)):
-                    out[k] = self.forward_plugin(out[k],
-                                                 self.after_conv3_plugin_names)
-
-            out = [
-                out_b + identity_b for out_b, identity_b in zip(out, identity)
-            ]
-            return out
-
         if self.with_cp and x.requires_grad:
-            out = cp.checkpoint(_inner_forward, x)
+            out = cp.checkpoint(self._inner_forward, x)
         else:
-            out = _inner_forward(x)
+            out = self._inner_forward(x)
 
         out = [self.relu(b) for b in out]
         if self.concat_output:
@@ -2037,7 +2044,7 @@ class TridentResNet(ResNet):
 # from mmdet.models.backbones import TridentResNet
 import torch
 
-def get_model():
+def _get_scripted_model():
     plugins = [
         dict(
             cfg=dict(
@@ -2062,9 +2069,6 @@ def get_model():
     model = TridentResNet(50, num_stages=3, **tridentresnet_config).cuda()
     return model
 
-def get_scripted_model():
-    from ._tridentnet_scripted import _get_scripted_model
-    return _get_scripted_model()
 
 def get_input(batch_size):
     return (torch.randn((batch_size, 3, 224, 224)).cuda(),), {}
