@@ -272,9 +272,10 @@ def perf_test_run(f, compile_mode, repeat, args, kwargs):
         o = f(*args, **kwargs)
         torch.cuda.synchronize()
         timer.log()
-    profile_stop()
     print("compile_mode:", compile_mode)
     timer.report()
+    # nsys will kill proc after profile_stop
+    profile_stop()
 
 
 def perf_test_run_cf(f, compiled, compile_mode, repeat, args_all, kwargs_all):

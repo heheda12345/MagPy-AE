@@ -38,14 +38,14 @@ class Timer:
                 self.convert_unit(self.min), self.unit,
                 self.convert_unit(self.max), self.unit,
                 self.convert_unit(self.sum / self.cnt), self.unit
-            ))
+            ), flush=True)
         else:
             print("{} iters, min = {:.4f} {}, max = {:.4f} {}, avg = {:.4f} {}".format(
                 self.cnt,
                 self.convert_unit(self.min), self.unit,
                 self.convert_unit(self.max), self.unit,
                 self.convert_unit(self.sum / self.cnt), self.unit
-            ))
+            ), flush=True)
         ret = {
             'cnt': self.cnt,
             'min': self.convert_unit(self.min),
