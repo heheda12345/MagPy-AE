@@ -287,6 +287,7 @@ def perf_test_run_cf(f, compiled, compile_mode, repeat, args_all, kwargs_all):
         assert_equal(o1, o2)
 
     profile_start()
+    timer = Timer('ms')
     for idx in range(repeat):
         # print("run:", idx)
         torch.cuda.synchronize()
@@ -450,6 +451,14 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
             xm.wait_device_ops()
             return o
         compiled = f_with_sync
+    elif compile_mode == "sys-nnf":
+        sys_config.set_config('debug', False)
+        sys_config.set_config('backend', 'nnf')
+        compiled = sys_compile(f)
+    elif compile_mode == "sys-torchscript":
+        sys_config.set_config('debug', False)
+        sys_config.set_config('backend', 'script')
+        compiled = sys_compile(f)
     elif compile_mode == 'xla':
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
         kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})

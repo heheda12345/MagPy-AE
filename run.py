@@ -50,6 +50,14 @@ with NO_LD_PRELOAD_CTX():
         if args.dyn_cf:
             assert hasattr(module, 'get_dynamic_inputs')
             input_args, input_kwargs = module.get_dynamic_inputs(args.bs, 2 * args.repeat)
+            import frontend
+            frontend.config.set_config('model_name', f"{args.model}_bs{args.bs}")
+            if args.model == 'blockdrop':
+                frontend.dynamic.add_branch_rewrite_pc(frontend.c_api.get_next_frame_id(), 51)
+            if args.model == 'lstm':
+                for_iter_pc = 32
+                frontend.dynamic.mark_dynamic_pc(frontend.c_api.get_next_frame_id(), for_iter_pc,
+                                frontend.dynamic.DynamicControlFlow(for_iter_pc, "FOR_ITER"))
             perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, 'cf', args.check)
         elif args.dyn_bs:
             perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs', args.check)
