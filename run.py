@@ -44,14 +44,14 @@ with NO_LD_PRELOAD_CTX():
         else:
             raise ValueError("lack of get_model in {}".format(args.model))
         assert args.dyn_cf + args.dyn_bs + args.dyn_len <= 1
+        import frontend
+        frontend.config.set_config('model_name', f"{args.model}_bs{args.bs}")
         model.eval()
         if args.compile in ("xla", "dynamo-xla", "sys-xla"):
             model = model.to('cpu').to(xm.xla_device())
         if args.dyn_cf:
             assert hasattr(module, 'get_dynamic_inputs')
             input_args, input_kwargs = module.get_dynamic_inputs(args.bs, 2 * args.repeat)
-            import frontend
-            frontend.config.set_config('model_name', f"{args.model}_bs{args.bs}")
             if args.model == 'blockdrop':
                 frontend.dynamic.add_branch_rewrite_pc(frontend.c_api.get_next_frame_id(), 51)
             if args.model == 'lstm':

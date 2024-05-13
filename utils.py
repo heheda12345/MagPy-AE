@@ -5,6 +5,7 @@ import ctypes
 from typing import List
 import traceback
 from timer import Timer
+import time
 import numpy as np
 from typing import Iterable
 from frontend import config as sys_config
@@ -46,6 +47,25 @@ def custom_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor])
     # print("example_inputs:", example_inputs)
     num_graph += 1
     return gm.forward
+
+def get_inductor_with_profile(timer: Timer):
+    import torch._inductor
+    def inductor_with_profile(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
+        start_time = time.time()
+        compiled = torch._inductor.compile_fx.compile_fx(gm, example_inputs)
+        end_time = time.time()
+
+        def run(*args):
+            torch.cuda.synchronize()
+            timer.start()
+            o = compiled(*args)
+            torch.cuda.synchronize()
+            timer.log()
+            return o
+        print(f"compile time: {end_time - start_time} s")
+        return run
+    return inductor_with_profile
+
 
 def onnx_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
     global num_graph
@@ -278,6 +298,31 @@ def perf_test_run(f, compile_mode, repeat, args, kwargs):
     profile_stop()
 
 
+def perf_test_with_profile(f, graph_timer, compile_mode, repeat, args, kwargs):
+    torch.cuda.synchronize()
+    start_time = time.time()
+    o = f(*args, **kwargs)
+    torch.cuda.synchronize()
+    end_time = time.time()
+    print("first run", end_time - start_time, "s")
+
+    for idx in range(repeat - 1):
+        torch.cuda.synchronize()
+        o = f(*args, **kwargs)
+        torch.cuda.synchronize()
+    graph_timer.clear()
+    timer = Timer("ms")
+    for idx in range(repeat):
+        torch.cuda.synchronize()
+        timer.start()
+        o = f(*args, **kwargs)
+        torch.cuda.synchronize()
+        timer.log()
+    print("compile_mode:", compile_mode)
+    timer.report(text = 'e2e')
+    graph_timer.report(text = 'graph profile')
+
+
 def perf_test_run_cf(f, compiled, compile_mode, repeat, args_all, kwargs_all):
     for idx in range(repeat):
         o1 = f(*args_all[idx], **kwargs_all[idx])
@@ -436,6 +481,14 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     elif compile_mode == "sys":
         sys_config.set_config('debug', False)
         compiled = sys_compile(f)
+    elif compile_mode == "sys-profile":
+        graph_timer = Timer("ms")
+        compiler = get_inductor_with_profile(graph_timer)
+        sys_config.set_config('backend', compiler)
+        sys_config.set_config('debug', False)
+        # print("compiler:", compiler, flush=True)
+        # print("is_debug", sys_config.get_config('debug'))
+        compiled = sys_compile(f)
     elif compile_mode == "sys-dynamic":
         sys_config.set_config('debug', False)
         compiled = sys_compile(f)
@@ -453,7 +506,13 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
         compiled = f_with_sync
     elif compile_mode == "sys-nnf":
         sys_config.set_config('debug', False)
-        sys_config.set_config('backend', 'nnf')
+        def compile_fn(gm, example_inputs):
+            model_name = sys_config.get_config('model_name')
+            from fx2onnx import compile_with_nnf  # type: ignore[import]
+            from frontend.fx_graph import generate_real_tensors
+            real_inputs = generate_real_tensors(example_inputs)
+            return compile_with_nnf(model_name, gm, real_inputs)
+        sys_config.set_config('backend', compile_fn)
         compiled = sys_compile(f)
     elif compile_mode == "sys-torchscript":
         sys_config.set_config('debug', False)
@@ -488,14 +547,14 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
                 perf_test_run_seq_len(f, compiled, compile_mode, num_repeat, get_input_fn)
         else:
             perf_test_run_seq_len(f, compiled, compile_mode, num_repeat, get_input_fn)
+    elif compile_mode == "sys-profile":
+        perf_test_with_profile(compiled, graph_timer, compile_mode, num_repeat, args, kwargs)
     else:
         perf_test_run(compiled, compile_mode, num_repeat, args, kwargs)
-
 
     if compile_mode == "dynamo_graph":
         print("num_graph:", num_graph)
         num_graph = 0
-
 
 def read_bin(s, dtype=np.float32):
     with open(s + ".shape") as f: shape = tuple((int(x) for x in f.read().strip().split(" ")))

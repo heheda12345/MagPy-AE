@@ -30,17 +30,23 @@ class Timer:
         self.cnt += 1
         # print("iter {} time: {:.4f} {}".format(self.cnt, self.convert_unit(duration), self.unit))
 
-    def report(self, color = None):
+    def report(self, color = None, text=None):
+        if text is None:
+            text = ""
+        else:
+            text += " "
         if color is None: color = self.color
         if color:
-            print("\033[31m{} iters, min = {:.4f} {}, max = {:.4f} {}, avg = {:.4f} {}\033[m".format(
+            print("\033[31m{}{} iters, min = {:.4f} {}, max = {:.4f} {}, avg = {:.4f} {}\033[m".format(
+                text,
                 self.cnt,
                 self.convert_unit(self.min), self.unit,
                 self.convert_unit(self.max), self.unit,
                 self.convert_unit(self.sum / self.cnt), self.unit
             ), flush=True)
         else:
-            print("{} iters, min = {:.4f} {}, max = {:.4f} {}, avg = {:.4f} {}".format(
+            print("{}{} iters, min = {:.4f} {}, max = {:.4f} {}, avg = {:.4f} {}".format(
+                text,
                 self.cnt,
                 self.convert_unit(self.min), self.unit,
                 self.convert_unit(self.max), self.unit,
