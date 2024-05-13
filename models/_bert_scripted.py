@@ -39,7 +39,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.bert.configuration_bert import BertConfig
-
+from utils import script_with_log
 
 
 class BertSelfAttention(nn.Module):
@@ -197,7 +197,7 @@ class BertAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None):
         super().__init__()
         self.self = BertSelfAttention(config, position_embedding_type=position_embedding_type)
-        self.output = torch.jit.script(BertSelfOutput(config))
+        self.output = script_with_log(BertSelfOutput(config))
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -283,8 +283,8 @@ class BertLayer(nn.Module):
             if not self.is_decoder:
                 raise ValueError(f"{self} should be used as a decoder model if cross attention is added")
             self.crossattention = BertAttention(config, position_embedding_type="absolute")
-        self.intermediate = torch.jit.script(BertIntermediate(config))
-        self.output = torch.jit.script(BertOutput(config))
+        self.intermediate = script_with_log(BertIntermediate(config))
+        self.output = script_with_log(BertOutput(config))
 
     def forward(
         self,

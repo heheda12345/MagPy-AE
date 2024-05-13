@@ -453,8 +453,8 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
         compiled = torch.compile(f, dynamic=True)
     elif compile_mode == "dynamo-graph":
         torch._dynamo.reset()
-        explain(f, *args, **kwargs)
-        torch._dynamo.reset()
+        # explain(f, *args, **kwargs)
+        # torch._dynamo.reset()
         compiled = torch.compile(f, backend=custom_backend)
     elif compile_mode == "dynamo-onnx":
         torch._dynamo.reset()
@@ -552,7 +552,7 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     else:
         perf_test_run(compiled, compile_mode, num_repeat, args, kwargs)
 
-    if compile_mode == "dynamo_graph":
+    if compile_mode == "dynamo-graph":
         print("num_graph:", num_graph)
         num_graph = 0
 
@@ -566,3 +566,8 @@ def save_bin(data, path):
     data = data.clone().detach().cpu().numpy()
     with open(path + ".shape", "w") as f: f.write(" ".join(str(x) for x in data.shape))
     data.tofile(path + ".bin")
+
+
+def script_with_log(*args, **kwargs):
+    print("run torch.jit.script")
+    return torch.jit.script(*args, **kwargs)

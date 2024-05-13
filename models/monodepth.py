@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import importlib
+from utils import script_with_log
 
 
 class conv(nn.Module):
@@ -326,7 +326,7 @@ def get_model():
 
 def get_scripted_model():
     model = get_model()
-    model = torch.jit.script(model)
+    model = script_with_log(model)
     return model
 
 

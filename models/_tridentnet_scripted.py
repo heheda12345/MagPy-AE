@@ -29,6 +29,7 @@ import numpy as np
 import torch.nn.functional as F
 from torch import distributed as dist
 import logging
+from utils import script_with_log
 
 CONV_LAYERS = {
     'Conv1d': nn.Conv1d,
@@ -1295,9 +1296,9 @@ class Bottleneck(BaseModule):
                 planes * self.expansion, self.after_conv3_plugins)
         
 
-        self.seq1 = torch.jit.script(nn.Sequential(self.conv1, self.norm1, self.relu))
-        self.seq2 = torch.jit.script(nn.Sequential(self.conv2, self.norm2, self.relu))
-        self.seq3 = torch.jit.script(nn.Sequential(self.conv3, self.norm3))
+        self.seq1 = script_with_log(nn.Sequential(self.conv1, self.norm1, self.relu))
+        self.seq2 = script_with_log(nn.Sequential(self.conv2, self.norm2, self.relu))
+        self.seq3 = script_with_log(nn.Sequential(self.conv3, self.norm3))
 
     def make_block_plugins(self, in_channels, plugins):
         """make plugins for block.

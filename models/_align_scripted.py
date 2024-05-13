@@ -39,7 +39,7 @@ from transformers.utils import (
     replace_return_docstrings,
 )
 from transformers.models.align.configuration_align import AlignConfig, AlignTextConfig, AlignVisionConfig
-
+from utils import script_with_log
 
 logger = logging.get_logger(__name__)
 
@@ -565,17 +565,17 @@ class AlignVisionBlock(nn.Module):
                 config=config, in_dim=in_dim, out_dim=expand_in_dim, stride=stride
             )
 
-        self.depthwise_conv = torch.jit.script(AlignVisionDepthwiseLayer(
+        self.depthwise_conv = script_with_log(AlignVisionDepthwiseLayer(
             config=config,
             in_dim=expand_in_dim if self.expand else in_dim,
             stride=stride,
             kernel_size=kernel_size,
             adjust_padding=adjust_padding,
         ))
-        self.squeeze_excite = torch.jit.script(AlignVisionSqueezeExciteLayer(
+        self.squeeze_excite = script_with_log(AlignVisionSqueezeExciteLayer(
             config=config, in_dim=in_dim, expand_dim=expand_in_dim, expand=self.expand
         ))
-        self.projection = torch.jit.script(AlignVisionFinalBlockLayer(
+        self.projection = script_with_log(AlignVisionFinalBlockLayer(
             config=config,
             in_dim=expand_in_dim if self.expand else in_dim,
             out_dim=out_dim,
@@ -892,7 +892,7 @@ class AlignTextAttention(nn.Module):
     def __init__(self, config, position_embedding_type=None):
         super().__init__()
         self.self = AlignTextSelfAttention(config, position_embedding_type=position_embedding_type)
-        self.output = torch.jit.script(AlignTextSelfOutput(config))
+        self.output = script_with_log(AlignTextSelfOutput(config))
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
@@ -981,8 +981,8 @@ class AlignTextLayer(nn.Module):
             if not self.is_decoder:
                 raise ValueError(f"{self} should be used as a decoder model if cross attention is added")
             self.crossattention = AlignTextAttention(config, position_embedding_type="absolute")
-        self.intermediate = torch.jit.script(AlignTextIntermediate(config))
-        self.output = torch.jit.script(AlignTextOutput(config))
+        self.intermediate = script_with_log(AlignTextIntermediate(config))
+        self.output = script_with_log(AlignTextOutput(config))
 
     def forward(
         self,
@@ -1215,10 +1215,10 @@ class AlignTextModel(AlignPreTrainedModel):
         super().__init__(config)
         self.config = config
 
-        self.embeddings = torch.jit.script(AlignTextEmbeddings(config))
+        self.embeddings = script_with_log(AlignTextEmbeddings(config))
         self.encoder = AlignTextEncoder(config)
 
-        self.pooler = torch.jit.script(AlignTextPooler(config)) if add_pooling_layer else None
+        self.pooler = script_with_log(AlignTextPooler(config)) if add_pooling_layer else None
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -1340,7 +1340,7 @@ class AlignVisionModel(AlignPreTrainedModel):
     def __init__(self, config: AlignVisionConfig):
         super().__init__(config)
         self.config = config
-        self.embeddings = torch.jit.script(AlignVisionEmbeddings(config))
+        self.embeddings = script_with_log(AlignVisionEmbeddings(config))
         self.encoder = AlignVisionEncoder(config)
 
         # Final pooling layer

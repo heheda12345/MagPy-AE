@@ -10,7 +10,7 @@ import math
 import torch.nn.functional as F
 from torch.autograd import Variable
 from torch.autograd.function import InplaceFunction
-
+from utils import script_with_log
 
 class Concat(nn.Sequential):
 
@@ -637,7 +637,7 @@ class Bottleneck(nn.Module):
         conv3 = nn.Conv2d(planes, planes * 2, kernel_size=1, bias=not batch_norm)
         bn3 = depBatchNorm2d(batch_norm, planes * 2)
         relu = nn.ReLU(inplace=True)
-        self.seq = torch.jit.script(nn.Sequential(conv1, bn1, relu, conv2, bn2, relu, conv3, bn3))
+        self.seq = script_with_log(nn.Sequential(conv1, bn1, relu, conv2, bn2, relu, conv3, bn3))
         self.downsample = downsample
         self.stride = stride
 

@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.checkpoint as cp
 from collections import OrderedDict
-
+from utils import script_with_log
 
 __all__ = ['DenseNet', 'densenet121', 'densenet169', 'densenet201', 'densenet161']
 
@@ -131,7 +131,7 @@ class DenseNet(nn.Module):
             self.features.add_module('denseblock%d' % (i + 1), block)
             num_features = num_features + num_layers * growth_rate
             if i != len(block_config) - 1:
-                trans = torch.jit.script(_Transition(num_input_features=num_features,
+                trans = script_with_log(_Transition(num_input_features=num_features,
                                     num_output_features=num_features // 2))
                 self.features.add_module('transition%d' % (i + 1), trans)
                 num_features = num_features // 2

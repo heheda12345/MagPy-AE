@@ -24,7 +24,7 @@ from transformers.modeling_utils import PreTrainedModel
 from transformers.pytorch_utils import softmax_backward_data
 from transformers.utils import add_code_sample_docstrings, add_start_docstrings, add_start_docstrings_to_model_forward, logging
 from transformers.models.deberta.configuration_deberta import DebertaConfig
-
+from utils import script_with_log
 logger = logging.get_logger(__name__)
 _CONFIG_FOR_DOC = "DebertaConfig"
 _CHECKPOINT_FOR_DOC = "microsoft/deberta-base"
@@ -298,7 +298,7 @@ class DebertaAttention(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.self = DisentangledSelfAttention(config)
-        self.output = torch.jit.script(DebertaSelfOutput(config))
+        self.output = script_with_log(DebertaSelfOutput(config))
         self.config = config
 
     def forward(
@@ -365,8 +365,8 @@ class DebertaLayer(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.attention = DebertaAttention(config)
-        self.intermediate = torch.jit.script(DebertaIntermediate(config))
-        self.output = torch.jit.script(DebertaOutput(config))
+        self.intermediate = script_with_log(DebertaIntermediate(config))
+        self.output = script_with_log(DebertaOutput(config))
 
     def forward(
         self,
@@ -766,7 +766,7 @@ class DebertaEmbeddings(nn.Module):
 
         if self.embedding_size != config.hidden_size:
             self.embed_proj = nn.Linear(self.embedding_size, config.hidden_size, bias=False)
-        self.LayerNorm = torch.jit.script(DebertaLayerNorm(config.hidden_size, config.layer_norm_eps))
+        self.LayerNorm = script_with_log(DebertaLayerNorm(config.hidden_size, config.layer_norm_eps))
         self.dropout = StableDropout(config.hidden_dropout_prob)
         self.config = config
 

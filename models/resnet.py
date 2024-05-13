@@ -4,6 +4,7 @@ from typing import Any, Callable, List, Optional, Type, Union
 import torch
 import torch.nn as nn
 from torch import Tensor
+from utils import script_with_log
 
 
 def conv3x3(in_planes: int,
@@ -311,7 +312,7 @@ def get_model():
 
 def get_scripted_model():
     model = resnet101().cuda()
-    model = torch.jit.script(model)
+    model = script_with_log(model)
     return model
 
 def get_input(batch_size):
