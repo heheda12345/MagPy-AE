@@ -47,3 +47,21 @@ for example, the following command can be used to profile ```DeepVisor``` result
 ```
 ./profile.sh logs/240509-200914/ sys
 ```
+
+you will get below results:
+```
+profiling logs/240508-215611/ with sys mode
+profiling...
+overall models 2000
+  -untested models: 581
+    --no tests:      507
+    --no profiling:  74
+
+  -remaining models:  1419
+  -dynamic models:    128
+  -static models:     1291
+
+        total  unpassed  rate
+models   1291        89  6.9%
+output   1291         4  0.3%
+```
