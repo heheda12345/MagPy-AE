@@ -65,3 +65,5 @@ overall models 2000
 models   1291        89  6.9%
 output   1291         4  0.3%
 ```
+
+In the results, the ```unpassed``` and ```rate``` refer to ```Failed cases``` and ```Fail rate``` respectively.
