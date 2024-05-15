@@ -68,3 +68,8 @@ TABLE 3 and Figure 18 needs additional environment setup. Please follow the inst
 
 ## 5. Reproduce the Figures
 You can use the scripts in ``plot`` folder to reproduce the figures.
+
+```bash
+cd $AE_DIR/plot
+./plot.sh
+```
