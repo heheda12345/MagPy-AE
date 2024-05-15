@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from utils import read_bin
 
-data_dir = '../data/blockdrop'
+data_dir = './data/blockdrop'
 
 class Identity(nn.Module):
     def __init__(self):

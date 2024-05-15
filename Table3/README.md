@@ -2,7 +2,8 @@
 
 ### 1. Preparing
 
-To evaluate and get the results shown in Table 3, please download the following ParityBench source code and do the experiments under the directory:
+To evaluate and get the results shown in Table 3, please download ParityBench source code and do the experiments under the directory:
+**For AE Reviewers**: This repo is saved at `~/pytorch-jit-paritybench`
 
 ```
 git clone git@github.com:heheda12345/pytorch-jit-paritybench.git
@@ -10,11 +11,8 @@ cd pytorch-jit-paritybench
 ```
 
 ### 2. Evaluating 
+The following command evaluates dynamo, torchscript and DeepVisor with all models in ParityBench. Note that this command will takes a long time (Ten hours if using one GPU)
 
-**For all models in this ParityBench**
-
-
-**To evaluate dynamo, torchscript and our DeepVisor:**
 ```
 ./run.sh
 ```

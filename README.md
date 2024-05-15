@@ -17,9 +17,9 @@ This repository contains the artifact for the paper "DeepVisor: Effective Operat
 ## 2. Environment Preparation
 
 **For AE Reviewers**:
-We have prepared the environment in our cluster. Please follow the instructions in "Comments for AEC" on HotCRP and skip this section if you want to use the provided environment. 
+We have prepared the environment in our cluster. Please follow the instructions in "Comments for AEC" on HotCRP to connect to our cluster and use `source ~/ae_env.sh` to load the environment. Then, you can skip this section.
 
-* download code
+* Download code
     ```bash
     git clone https://github.com/heheda12345/frontend.git
     git clone https://github.com/heheda12345/frontend-AE.git
@@ -27,11 +27,11 @@ We have prepared the environment in our cluster. Please follow the instructions 
     exprot AE_DIR=$PWD/frontend-AE
     ```
 
-* prerequisite
+* Prerequisite
     * Python 3.9 (Other Python version is not supported yet)
     * CUDA 11.8 (Fully tested, other versions may work)
 
-* install dependencies
+* Install dependencies
 The README.md in frontend repo only provides the guide to run DeepVisor. More dependencies are needed to reproduce the results in this paper. Please use the following steps to step up the environment.
 
     ```bash
@@ -50,11 +50,19 @@ The README.md in frontend repo only provides the guide to run DeepVisor. More de
     ```
 
 ## 3. Getting Started with a Simple Example
-* Go to the *get_started_tutorial/* folder and follow [README_GET_STARTED.md](get_started_tutorial/README.md).
+* Go to the `get_started_tutorial/` folder and follow [README_GET_STARTED.md](get_started_tutorial/README.md).
 
 ## 4. Reproducing Experiement Results
 
 TABLE 3 and Figure 18 needs additional environment setup. Please follow the instructions in [Figure18/README.md](Figure18/README.md) and [Table3/README.md](Table3/README.md) to setup the environment. Then, you can ``cd`` to each folder and use ``./run.sh'' to reproduce the results.
+
+**For AE Reviewers:**: we have already setup the environment for DeepVisor and all experemetns in our cluster. You can use the following command to load the environment and run all experiments (except Table 3, which requires a long time).
+
+```bash
+source ~/ae_env.sh
+cd ~/frontend-AE
+./run_all.sh
+```
 
 | Experiments   | Figure # in Paper |  Script Location |
 | -----------     | -----------  |  ----------- |
@@ -64,7 +72,7 @@ TABLE 3 and Figure 18 needs additional environment setup. Please follow the inst
 | #4. Inference of models with dynamic shape | Figure 17 | [run.sh](Figure17/run.sh) |
 | #5. Inference of models with dynamic control flow | Figure 18 | [run.sh](Figure18/run.sh) |
 | #6. Number of exported operator graphs | Table 2 | [run.sh](Table2/run.sh) |
-| #7. Result on ParityBench | Table 3 | [run.sh](Table3/run.sh) |
+| #7. Result on ParityBench | Table 3 | [README.md](Table3/README.md) |
 
 ## 5. Reproduce the Figures
 You can use the scripts in ``plot`` folder to reproduce the figures.
