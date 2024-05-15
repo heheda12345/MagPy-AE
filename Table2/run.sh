@@ -11,7 +11,7 @@ do
     do
         for compile in dynamo-graph script
         do
-                srun -p octave --gres=gpu:1 -J graphcount-$model-$compile --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 --bs $bs --model $model --compile $compile 2>&1 | tee $LOG_DIR/$model.$compile.log &
+                srun -p octave --gres=gpu:1 -J graphcount-$model-$compile --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs $bs --model $model --compile $compile 2>&1 | tee $LOG_DIR/$model.$compile.log &
         done
     done
 done
