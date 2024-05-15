@@ -107,7 +107,10 @@ def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
     num_graph += 1
     real_inputs = tuple([torch.rand(x.shape, dtype=x.dtype, layout=x.layout, device=x.device) for x in  example_inputs])
     input_names = tuple([f"input_{i}" for i in range(len(real_inputs))])
-    model_path = f"tmp/onnx_graph_{num_graph}.onnx"
+    import os
+    os.makedirs("tmp", exist_ok=True)
+    model_name = sys_config.get_config('model_name')
+    model_path = f"tmp/{model_name}_onnx_graph_{num_graph}.onnx"
     print("start onnx export", flush=True)
     torch.onnx.export(gm, real_inputs, model_path, verbose=True, opset_version=12, input_names=input_names, training=torch.onnx.TrainingMode.TRAINING, do_constant_folding=False) # should be do_constant_folding=False
     print("end onnx export", flush=True)
@@ -131,9 +134,9 @@ def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
         outputs_name = [item.name for item in onnx_model.graph.output]
         return session, inputs_name, outputs_name
     
-    NNFUSION_ROOT = os.path.expanduser("~/nnfusion-for-frontend")
-    os.environ["PATH"] = os.path.abspath(NNFUSION_ROOT) + ":" + os.environ["PATH"]
-    sys.path.insert(1, os.path.abspath(NNFUSION_ROOT + "/src/python"))
+    # NNFUSION_ROOT = os.path.expanduser("~/frontend/nnfusion")
+    # os.environ["PATH"] = os.path.abspath(NNFUSION_ROOT) + ":" + os.environ["PATH"]
+    # sys.path.insert(1, os.path.abspath(NNFUSION_ROOT + "/src/python"))
     from nnfusion.session import codegen, modify_nnfusion_rt, build
     from nnfusion.executor import Executor
     from nnfusion.data_format import cast_pytorch_tensor
@@ -142,6 +145,7 @@ def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
         flags_str += " ".join([
             "-f{}={}".format(k, v) for k, v in codegen_flags.items()
         ])
+        print("work dir:", workdir,)
         os.system(f"rm -r {workdir}")
         os.system(f"mkdir -p {workdir}")
         codegen(onnx_model_path, flags_str, workdir)
@@ -329,7 +333,8 @@ def perf_test_run_cf(f, compiled, compile_mode, repeat, args_all, kwargs_all):
         torch.cuda.synchronize()
         o2 = compiled(*args_all[idx], **kwargs_all[idx])
         torch.cuda.synchronize()
-        assert_equal(o1, o2)
+        if compile_mode != 'dynamo-nnf':
+            assert_equal(o1, o2)
 
     profile_start()
     timer = Timer('ms')

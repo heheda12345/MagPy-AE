@@ -156,8 +156,16 @@ if __name__ == '__main__':
     import torch
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
+    import argparse
+    from frontend.no_preload import NO_LD_PRELOAD_CTX
+    from frontend import config
+    
+    with NO_LD_PRELOAD_CTX():
+        with torch.no_grad():
+            parser = argparse.ArgumentParser()
+            parser.add_argument("--bs", type=int, default=1)
+            args = parser.parse_args()
 
-    with torch.no_grad():
-        perf_test(1)
-
+            config.set_config('model_name', f'lstm_bs{args.bs}')
+            perf_test(args.bs)
 

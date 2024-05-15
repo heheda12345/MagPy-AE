@@ -17,7 +17,3 @@ do
 done
 
 wait
-
-cd -
-
-python3 gather.py # print all graph count

@@ -1,7 +1,7 @@
 from utils import *
 import itertools
 
-LOG_DIR = '../logs/figure15'
+LOG_DIR = '../logs/e2e'
 
 model_names = ['bert', 'deberta', 'monodepth', 'quantized', 'tridentnet']
 sys_names = ['eager', ('dynamo', 'sys'), ('xla', 'sys-xla')]

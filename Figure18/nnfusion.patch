@@ -1,0 +1,354 @@
+diff --git a/src/nnfusion/core/kernels/cuda_gpu/controlflow_emitter.cpp b/src/nnfusion/core/kernels/cuda_gpu/controlflow_emitter.cpp
+index 38e96f7..a3d1368 100644
+--- a/src/nnfusion/core/kernels/cuda_gpu/controlflow_emitter.cpp
++++ b/src/nnfusion/core/kernels/cuda_gpu/controlflow_emitter.cpp
+@@ -296,7 +296,11 @@ ir::BasicBlock::Pointer cuda::ControlFlowEmitter::create_param_map(
+     for (auto blk : program)
+         for (auto ins : *blk)
+             all_instructions.push_back(ins);
+-
++    std::cout << "******************************* all gnodes" << std::endl;
++    for (auto ins : all_instructions)
++    {
++        std::cout << *(ins->getGNode()) << std::endl;
++    }
+     auto input_map = get_subgraph_inputs(program);
+     std::map<nnfusion::descriptor::Tensor::Pointer, std::string> scalar_map;
+     
+@@ -365,7 +369,25 @@ ir::BasicBlock::Pointer cuda::ControlFlowEmitter::create_param_map(
+                                                     std::to_string(stride);
+                 continue;
+             }
+-        } 
++        }
++        else if (type == "Slice" && 
++                !subgraph_output_map.count(ins->get_outputs()[0]->get_name(false)) &&
++                !dynamic_pointer_cast<op::Slice>(ins->getGNode()->get_op_ptr())
++                      ->get_is_layout_change()) {
++            size_t bias = 0;
++            auto slice_op = dynamic_pointer_cast<op::Slice>(ins->getGNode()->get_op_ptr());
++            auto lower = slice_op->get_lower_bounds();
++            auto upper = slice_op->get_upper_bounds();
++            for (size_t i = 0; i < lower.size(); i++) {
++                if (lower[i] != 0) {
++                    NNFUSION_CHECK(i == lower.size() - 1);
++                    bias += lower[i];
++                }
++            }
++            NNFUSION_LOG(INFO) << "skip slice op" << *(ins->getGNode());
++            m_param_map[ins->get_outputs()[0]] = "(" + m_param_map[ins->get_inputs()[0]] + ")+" + std::to_string(bias);
++            continue;
++        }
+         else if (type == "ElementWiseFused") {
+             auto fused_gnode = std::static_pointer_cast<graph::FusedGNode>(ins->getGNode());
+             auto ctxs = fused_gnode->get_op_contexts();
+diff --git a/src/nnfusion/core/kernels/cuda_gpu/kernels/elementwise_fused.cpp b/src/nnfusion/core/kernels/cuda_gpu/kernels/elementwise_fused.cpp
+index d3706c5..5f14159 100644
+--- a/src/nnfusion/core/kernels/cuda_gpu/kernels/elementwise_fused.cpp
++++ b/src/nnfusion/core/kernels/cuda_gpu/kernels/elementwise_fused.cpp
+@@ -236,21 +236,25 @@ LanguageUnit_p ElementWiseFused::emit_comments()
+        << "\n";
+     //lu << "// Description:\t" << m_context->node->description() << "\n";
+     lu << "// Input:\n";
++    int i = 0;
+     for (auto in : m_context->inputs)
+     {
+-        lu << "//\t- name: " << in->get_name();
++        lu << "//\t-input"<< i << " name: " << in->get_name();
+         lu << "\ttype: " << in->get_element_type().c_type_string();
+         lu << "\tshape: " << in->get_shape();
+         lu << "\n";
++        i++;
+     }
+ 
+     lu << "// Output:\n";
++    i = 0;
+     for (auto out : m_context->outputs)
+     {
+-        lu << "//\t- name: " << out->get_name();
++        lu << "//\t-output" << i << " name: " << out->get_name();
+         lu << "\ttype: " << out->get_element_type().c_type_string();
+         lu << "\tshape: " << out->get_shape();
+         lu << "\n";
++        i++;
+     }
+ 
+     lu << "// Fused functions:\n";
+diff --git a/src/nnfusion/core/kernels/cuda_gpu/kernels/if.cpp b/src/nnfusion/core/kernels/cuda_gpu/kernels/if.cpp
+index 32d8683..21a0fe3 100644
+--- a/src/nnfusion/core/kernels/cuda_gpu/kernels/if.cpp
++++ b/src/nnfusion/core/kernels/cuda_gpu/kernels/if.cpp
+@@ -92,14 +92,14 @@ cuda::If::If(shared_ptr<KernelContext> ctx)
+     for (int i = 0; i < m_else_branch_instructions->size(); i++) {
+         size_t shm_size = get_kernel_shared_memory((*m_else_branch_instructions).at(i)->getKernel());
+         if (shm_size > 0) {
+-            if (else_kernel_groups[else_kernel_groups.size() - 1].size() == 0) {
++            if (else_kernel_groups.size() > 0 && else_kernel_groups[else_kernel_groups.size() - 1].size() == 0) {
+                 else_kernel_groups[else_kernel_groups.size() - 1].push_back(i);
+             } else {
+                 else_kernel_groups.push_back(std::vector<int>({i}));
+             }
+             else_kernel_groups.push_back(std::vector<int>());
+         } else {
+-            if (i == 0) {
++            if (else_kernel_groups.size() == 0) {
+                 else_kernel_groups.push_back(std::vector<int>());
+             }
+             else_kernel_groups[else_kernel_groups.size() - 1].push_back(i);
+diff --git a/src/nnfusion/core/kernels/kernel_emitter.cpp b/src/nnfusion/core/kernels/kernel_emitter.cpp
+index 894d935..cfe4ef0 100644
+--- a/src/nnfusion/core/kernels/kernel_emitter.cpp
++++ b/src/nnfusion/core/kernels/kernel_emitter.cpp
+@@ -201,32 +201,36 @@ LanguageUnit_p KernelEmitter::emit_comments()
+     lu << "// Node name:\t" << m_context->gnode->get_op_ptr()->get_unique_name() << "\n";
+     lu << "// Description:\t" << m_context->gnode->get_op_type() << "\n";
+     lu << "// Input:\n";
++    int i = 0;
+     for (auto in : m_context->inputs)
+     {
+-        lu << "//\t- name: " << in->get_name();
++        lu << "//\t-input"<< i << " name: " << in->get_name();
+         lu << "\ttype: " << in->get_element_type().c_type_string();
+         lu << "\tshape: " << in->get_shape();
+         lu << "\n";
++        i++;
+     }
+-
++    i = 0;
+     lu << "// Output:\n";
+     for (auto out : m_context->outputs)
+     {
+-        lu << "//\t- name: " << out->get_name();
++        lu << "//\t-output" << i << " name: " << out->get_name();
+         lu << "\ttype: " << out->get_element_type().c_type_string();
+         lu << "\tshape: " << out->get_shape();
+         lu << "\n";
++        i++;
+     }
+ 
+     if (!m_context->tensors.empty())
+         lu << "// Other tensors in use:\n";
+-
++    i = 0;
+     for (auto persist : m_context->tensors)
+     {
+-        lu << "//\t- name: " << persist->get_name();
++        lu << "//\t-tensor" << i << " name: " << persist->get_name();
+         lu << "\ttype: " << persist->get_element_type().c_type_string();
+         lu << "\tshape: " << persist->get_shape();
+         lu << "\n";
++        i++;
+     }
+ 
+     return _lu;
+diff --git a/src/nnfusion/core/operators/op_define/slice.cpp b/src/nnfusion/core/operators/op_define/slice.cpp
+index afb9c74..91c9aac 100644
+--- a/src/nnfusion/core/operators/op_define/slice.cpp
++++ b/src/nnfusion/core/operators/op_define/slice.cpp
+@@ -106,4 +106,16 @@ void Slice::infer_shared_memory(std::shared_ptr<graph::GNode> gnode)
+             m_shared_memory.push_back(1);
+         }
+     }
++}
++
++ bool Slice::get_is_layout_change() const {
++    for (size_t i = 0; i < m_lower_bounds.size() - 1; i++) {
++        if (m_lower_bounds[i] != 0 || m_upper_bounds[i] != 1) {
++            return true;
++        }
++    }
++    if (m_strides[m_strides.size() - 1] != 1) {
++        return true;
++    }
++    return false;
+ }
+\ No newline at end of file
+diff --git a/src/nnfusion/core/operators/op_define/slice.hpp b/src/nnfusion/core/operators/op_define/slice.hpp
+index e2bb11f..bfc4e33 100644
+--- a/src/nnfusion/core/operators/op_define/slice.hpp
++++ b/src/nnfusion/core/operators/op_define/slice.hpp
+@@ -54,6 +54,8 @@ namespace nnfusion
+             const nnfusion::Strides& get_strides() const { return m_strides; }
+             void infer_shared_memory(std::shared_ptr<graph::GNode> gnode) override;
+ 
++            bool get_is_layout_change() const;
++
+         protected:
+             void validate_and_infer_types(std::shared_ptr<graph::GNode> gnode) override;
+ 
+diff --git a/src/nnfusion/engine/pass/codegen/cuda_codegen_pass.cpp b/src/nnfusion/engine/pass/codegen/cuda_codegen_pass.cpp
+index aeeb127..f23fcd3 100644
+--- a/src/nnfusion/engine/pass/codegen/cuda_codegen_pass.cpp
++++ b/src/nnfusion/engine/pass/codegen/cuda_codegen_pass.cpp
+@@ -1489,7 +1489,7 @@ cmake_minimum_required(VERSION 3.5)
+ 
+ SET(SRC "nnfusion_rt.cu" CACHE STRING "codegen source file")
+ SET(TARGET_NAME "nnfusion_naive_rt" CACHE STRING "codegen target name")
+-SET(CUDA_ARCH "-gencode arch=compute_60,code=sm_60 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_75,code=sm_75" CACHE STRING "target architecture")
++SET(CUDA_ARCH "-gencode arch=compute_80,code=sm_80" CACHE STRING "target architecture")
+ 
+ if(NOT CMAKE_BUILD_TYPE)
+   set(CMAKE_BUILD_TYPE Release)
+@@ -1504,7 +1504,7 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} ${CUDA_ARCH}")
+ # set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS}  -ftemplate-depth=4096 -gencode arch=compute_60,code=sm_60 -gencode arch=compute_61,code=sm_61 -gencode arch=compute_70,code=sm_70 -gencode arch=compute_75,code=sm_75")
+ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -O2")
+ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -cudart shared")
+-set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --expt-relaxed-constexpr")
++set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} --expt-relaxed-constexpr -allow-unsupported-compiler")
+ )";
+ 
+     if (FLAGS_fkernels_as_files)
+diff --git a/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_codegen.cpp b/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_codegen.cpp
+index b3de898..9c99fce 100644
+--- a/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_codegen.cpp
++++ b/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_codegen.cpp
+@@ -1137,32 +1137,36 @@ LanguageUnit_p BlockFusionCudaCodegen::emit_comments()
+        << "\n";
+     //lu << "// Description:\t" << m_context->node->description() << "\n";
+     lu << "// Input:\n";
++    int i = 0;
+     for (auto in : m_context->inputs)
+     {
+-        lu << "//\t- name: " << in->get_name();
++        lu << "//\t-input"<< i << " name: " << in->get_name();
+         lu << "\ttype: " << in->get_element_type().c_type_string();
+         lu << "\tshape: " << in->get_shape();
+         lu << "\n";
++        i++;
+     }
+-
++    i = 0;
+     lu << "// Output:\n";
+     for (auto out : m_context->outputs)
+     {
+-        lu << "//\t- name: " << out->get_name();
++        lu << "//\t-output" << i << " name: " << out->get_name();
+         lu << "\ttype: " << out->get_element_type().c_type_string();
+         lu << "\tshape: " << out->get_shape();
+         lu << "\n";
++        i++;
+     }
+-
++    i = 0;
+     if (!m_context->tensors.empty())
+     {
+         lu << "// Other tensors in use:\n";
+         for (auto persist : m_context->tensors)
+         {
+-            lu << "//\t- name: " << persist->get_name();
++            lu << "//\t-tensor" << i << " name: " << persist->get_name();
+             lu << "\ttype: " << persist->get_element_type().c_type_string();
+             lu << "\tshape: " << persist->get_shape();
+             lu << "\n";
++            i++;
+         }
+     }
+ 
+diff --git a/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_optimizer.cpp b/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_optimizer.cpp
+index 76a8fdc..d7c4e91 100644
+--- a/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_optimizer.cpp
++++ b/src/nnfusion/engine/pass/graph/blockfusion/blockfusion_optimizer.cpp
+@@ -232,6 +232,15 @@ bool BlockFusionWavefrontOptimizer::verify_node(size_t node_id,
+     if (!m_is_outmost_graph) { // these ops are specially treated in control flow codegen
+         if (node->get_op_type() == "GatherV2")
+             return false;
++        if (node->get_op_type() == "Slice") {
++            bool no_effect = true;
++            auto slice_op = std::dynamic_pointer_cast<op::Slice>(node->get_op_ptr());
++            
++            std::cout << "slice_op: lower " << slice_op->get_lower_bounds() << " upper " << slice_op->get_upper_bounds() << "stride " << slice_op->get_strides() << "no)effect:" << no_effect << std::endl;
++            if (!slice_op->get_is_layout_change()) {
++                return false;
++            }
++        }
+         bool skip_due_to_scalar_op = true; // TODO: process scalar op with a single thread
+         for (auto inp: node->get_in_edges()) {
+             if (inp->is_control_edge()) continue;
+diff --git a/src/nnfusion/engine/profiler/cuda_runtime.cpp b/src/nnfusion/engine/profiler/cuda_runtime.cpp
+index a5970b6..d69b3c8 100644
+--- a/src/nnfusion/engine/profiler/cuda_runtime.cpp
++++ b/src/nnfusion/engine/profiler/cuda_runtime.cpp
+@@ -1029,7 +1029,7 @@ bool CUPTIRuntime::compile(const ProfilingContext::Pointer& ke)
+                 "-I/usr/local/cuda/extras/CUPTI/include\t-L/usr/local/cuda/extras/CUPTI/lib64\t"
+                 "--shared'\t--cudart\tshared\t-O2\t-gencode="
+                 "arch=compute_60,code=compute_60\t-gencode=arch=compute_61,code=compute_61\t"
+-                "-gencode=arch=compute_70,code=compute_70\t-gencode=arch=compute_75,code=compute_"
++                "-gencode=arch=compute_80,code=compute_80\t-gencode=arch=compute_75,code=compute_"
+                 "75\t-std=c++11\t--expt-relaxed-constexpr\t" +
+                 srcname + "\t-o\t" + objname)
+                    .c_str());
+diff --git a/src/nnfusion/frontend/onnx_import/op/loop.cpp b/src/nnfusion/frontend/onnx_import/op/loop.cpp
+index e1cd363..686f3e5 100644
+--- a/src/nnfusion/frontend/onnx_import/op/loop.cpp
++++ b/src/nnfusion/frontend/onnx_import/op/loop.cpp
+@@ -279,8 +279,8 @@ namespace nnfusion
+                             output_name_set.insert(name);
+                         }
+                         if (is_for_op) {
+-                          for (size_t i = 0; i < output_names.size() - 1; i++) {
+-                              output_to_input[output_names[i]] = input_names[i + 2];
++                          for (size_t i = 0; i < output_names.size(); i++) {
++                              output_to_input[output_names[i]] = input_names[i + 1];
+                           }
+                         } else {
+                           for (size_t i = 0; i < output_names.size(); i++) {
+@@ -347,7 +347,7 @@ namespace nnfusion
+                             if (!node_inputs.count(item))
+                             {
+                                 if (is_for_op) {
+-                                  node_inputs[item] = idx++;
++                                  node_inputs[item] = idx;
+                                 } else {
+                                   node_inputs[item] = idx - 1;
+                                 }
+diff --git a/src/python/nnfusion/dtypes.py b/src/python/nnfusion/dtypes.py
+index b550af9..eebbfe7 100644
+--- a/src/python/nnfusion/dtypes.py
++++ b/src/python/nnfusion/dtypes.py
+@@ -39,7 +39,7 @@ str2type = {
+     "uint64":
+     TypeObject._make(["uint8", ctypes.c_uint64, None, numpy.uint64]),
+     "bool":
+-    TypeObject._make(["bool", ctypes.c_bool, torch.bool, numpy.bool]),
++    TypeObject._make(["bool", ctypes.c_bool, torch.bool, numpy.bool_]),
+     "char":
+     TypeObject._make(["char", ctypes.c_char, torch.int8, numpy.char]),
+ }
+diff --git a/src/python/nnfusion/session.py b/src/python/nnfusion/session.py
+index d49f7ea..3bef5bb 100644
+--- a/src/python/nnfusion/session.py
++++ b/src/python/nnfusion/session.py
+@@ -73,7 +73,6 @@ def codegen(model_path, flags, output_dir):
+     with cd(output_dir):
+         command = 'bash -c "set -o pipefail; {} {} {} 2>&1 | tee codegen.log"'.format("nnfusion", model_path, flags)
+         execute(command)
+-        # os.system('cat codegen.log')
+ 
+ 
+ def modify_nnfusion_rt(rt_dir):
+diff --git a/src/python/setup.py b/src/python/setup.py
+new file mode 100644
+index 0000000..08da9af
+--- /dev/null
++++ b/src/python/setup.py
+@@ -0,0 +1,7 @@
++import setuptools
++
++setuptools.setup(
++    name='nnfusion',
++    version='0.0.0',
++    include_dirs=['nnfusion'],
++)
+diff --git a/src/tools/nnfusion/kernel_db/profile.py b/src/tools/nnfusion/kernel_db/profile.py
+index d0e55d4..e722100 100644
+--- a/src/tools/nnfusion/kernel_db/profile.py
++++ b/src/tools/nnfusion/kernel_db/profile.py
+@@ -15,7 +15,7 @@ def prepare_file(signature, code, config, path, parse=False):
+     profile_makefile = r'''
+ # Gencode arguments
+ # SMS ?= 30 35 37 50 52 60 61 70 75
+-SMS ?= 70
++SMS ?= 80
+ 
+ ifeq ($(GENCODE_FLAGS),)
+ # Generate SASS code for each SM architecture listed in $(SMS)

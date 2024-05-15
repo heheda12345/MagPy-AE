@@ -84,11 +84,24 @@ def parse_csv(path, sep='\t'):
   data.columns.name = ''
   return data
 
+def parse_time_ms(f_path):
+    pattern = re.compile(r"min = (\d+\.\d+) ms, max = (\d+\.\d+) ms, avg = (\d+\.\d+) ms")
+    with open(f_path) as f:
+        for line in f:
+            if "min" in line and "max" in line and "avg" in line:
+                g = pattern.search(line)
+                if g is None: return None
+                t = float(g.group(3))
+                return t
+    return None
+
 def parse_time_s(f_path):
     pattern = re.compile(r"min = (\d+\.\d+) s, max = (\d+\.\d+) s, avg = (\d+\.\d+) s")
     with open(f_path) as f:
         for line in f:
             if "min" in line and "max" in line and "avg" in line:
-                t = float(pattern.search(line).group(3))
+                g = pattern.search(line)
+                if g is None: return None
+                t = float(g.group(3))
                 return t
     return None
