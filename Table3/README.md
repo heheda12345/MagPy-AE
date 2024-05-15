@@ -1,8 +1,8 @@
-## Evaluating and Profiling ParityBench result
+## Evaluating and Analyzing ParityBench result
 
 ### 1. Preparing
 
-To evaluate and profile the results shown in Table 3, please download the following ParityBench source code and do the experiments under the directory:
+To evaluate and get the results shown in Table 3, please download the following ParityBench source code and do the experiments under the directory:
 
 ```
 git clone git@github.com:heheda12345/pytorch-jit-paritybench.git
@@ -20,19 +20,19 @@ cd pytorch-jit-paritybench
 ```
 
 
-### 3. Profiling
+### 3. Analyzing
 
 After evaluating all models for each compilation mode, the verbose results will be generated in ```logs/``` within ```compilation mode``` directory for each mode. 
 
 
-**To profile overall results:**
+**To dump overall results:**
 ```
-./profile.sh
+./analyze.sh
 ```
 
 you will get below results:
 ```
-profiling...
+analyzing...
 overall models 2000
   -untested models: 581
     --no tests:      507
@@ -44,7 +44,6 @@ overall models 2000
 
 mode         total      Failed cases  Fail rate
 sys          1291       89         6.9%    
-dynamo       1291       838        64.9%    
-torchscript  1291       507        39.3%
+dynamo       1291       838        39.3%    
+torchscript  1291       507        64.9%
 ```
-
