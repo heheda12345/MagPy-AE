@@ -75,7 +75,7 @@ cd ~/frontend-AE
 | #7. Result on ParityBench | Table 3 | [README.md](Table3/README.md) |
 
 ## 5. Reproduce the Figures
-You can use the scripts in ``plot`` folder to reproduce the figures.
+You can use the scripts in ``plot`` folder to reproduce the figures. The figures will be saved to `plot/figures/` folder.
 
 ```bash
 cd $AE_DIR/plot
