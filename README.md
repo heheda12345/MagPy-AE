@@ -35,12 +35,22 @@ We have prepared the environment in our cluster. Please follow the instructions 
 The README.md in frontend repo only provides the guide to run DeepVisor. More dependencies are needed to reproduce the results in this paper. Please use the following steps to step up the environment.
 
     ```bash
-    cd frontend-AE
-    pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html
+    cd $AE_DIR && pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html && cd ..
+    cd $FRONTEND_DIR && pip install -e . && cd ..
+    sed -i "226,230s/^/# /"  `python3 -c 'import torch_xla; print(torch_xla.__path__[0])'`/core/dynamo_bridge.py
+    ```
+
+    The last command is for comment out the following lines of torch_xla.
+    ```python
+    # fallback_ops = get_fallback_ops()
+    # if len(fallback_ops) > 0:
+    # raise RuntimeError(
+    #     f"Fail to extact the compiled graph because of fallback: {','.join(fallback_ops)}"
+    # )
     ```
 
 ## 3. Getting Started with a Simple Example
-* Go to the *get_started_tutorial/* folder and follow [README_GET_STARTED.md](get_started_tutorial/README_GET_STARTED.md).
+* Go to the *get_started_tutorial/* folder and follow [README_GET_STARTED.md](get_started_tutorial/README.md).
 
 ## 4. Reproducing Experiement Results
 

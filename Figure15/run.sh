@@ -1,5 +1,4 @@
 #!/bin/bash
-PYTHON_DIR=/home/heheda/envs/frontend-py.sh
 
 TIME_TAG=`date +%y%m%d-%H%M%S`
 
@@ -17,7 +16,7 @@ do
     do
         for compile in eager dynamo sys script sys-torchscript xla dynamo-xla sys-xla
         do
-                srun -p octave --gres=gpu:1 -J $bs-$model-$compile /home/heheda/envs/frontend-py.sh run.py --bs $bs --model $model --compile $compile 2>&1 | tee $LOG_DIR/$model.$bs.$compile.log &
+                srun -p octave --gres=gpu:1 -J $bs-$model-$compile --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs $bs --model $model --compile $compile 2>&1 | tee $LOG_DIR/$model.$bs.$compile.log &
         done
     done
 done

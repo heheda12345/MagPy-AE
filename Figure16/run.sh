@@ -1,5 +1,4 @@
 #!/bin/bash
-PYTHON_DIR=/home/heheda/envs/frontend-py.sh
 
 TIME_TAG=`date +%y%m%d-%H%M%S`
 
@@ -13,7 +12,7 @@ do
     do
         for compile in sys-profile
         do
-                srun -p octave --gres=gpu:1 -J profile-$model /home/heheda/envs/frontend-py.sh run.py --bs $bs --model $model --compile $compile 2>&1 | tee $LOG_DIR/$model.log &
+                srun -p octave --gres=gpu:1 -J profile-$model --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs $bs --model $model --compile $compile 2>&1 | tee $LOG_DIR/$model.log &
         done
     done
 done

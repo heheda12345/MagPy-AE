@@ -87,13 +87,13 @@ srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compi
 srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile dynamo
 
 # DeepVisor-Inductor
-srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$HOME/frontend/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys
+srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys
 
 # TorchScript-TorchScript
 srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile script
 
 # DeepVisor-TorchScript
-srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$HOME/frontend/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys-torchscript
+srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys-torchscript
 
 # LazyTensor-XLA
 XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile xla
@@ -102,7 +102,7 @@ XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU s
 XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile dynamo-xla
 
 # DeepVisor-XLA
-XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$HOME/frontend/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys-xla
+XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys-xla
 
 ```
 
