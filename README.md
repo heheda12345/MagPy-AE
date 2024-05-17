@@ -37,17 +37,20 @@ The README.md in frontend repo only provides the guide to run DeepVisor. More de
     ```bash
     cd $AE_DIR && pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html && cd ..
     cd $FRONTEND_DIR && pip install -e . && cd ..
+    sed -i 's/py_all(a\.shape\[i\] for i in dims)/py_all(a.shape[i] > 0 for i in dims)/g' `python3 -c 'import torch; print(torch.__path__[0])'`/_refs/__init__.py
     sed -i "226,230s/^/# /"  `python3 -c 'import torch_xla; print(torch_xla.__path__[0])'`/core/dynamo_bridge.py
     ```
 
-    The last command is for comment out the following lines of torch_xla.
-    ```python
-    # fallback_ops = get_fallback_ops()
-    # if len(fallback_ops) > 0:
-    # raise RuntimeError(
-    #     f"Fail to extact the compiled graph because of fallback: {','.join(fallback_ops)}"
-    # )
-    ```
+    The last two commands are for fixing the following issues:
+    1. change the `py_all(a.shape[i] > 0 for i in dims)` to `py_all(a.shape[i] > 0 for i in dims)` in `torch/_refs/__init__.py` to avoid the guard on the reduction length
+    2. comment out the following lines of torch_xla to avoid crash
+        ```python
+        # fallback_ops = get_fallback_ops()
+        # if len(fallback_ops) > 0:
+        # raise RuntimeError(
+        #     f"Fail to extact the compiled graph because of fallback: {','.join(fallback_ops)}"
+        # )
+        ```
 
 ## 3. Getting Started with a Simple Example
 * Go to the `get_started_tutorial/` folder and follow [README_GET_STARTED.md](get_started_tutorial/README.md).
