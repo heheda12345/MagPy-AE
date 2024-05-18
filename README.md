@@ -24,7 +24,7 @@ We have prepared the environment in our cluster. Please follow the instructions 
     git clone https://github.com/heheda12345/frontend.git
     git clone https://github.com/heheda12345/frontend-AE.git
     export FRONTEND_DIR=$PWD/frontend
-    exprot AE_DIR=$PWD/frontend-AE
+    export AE_DIR=$PWD/frontend-AE
     ```
 
 * Prerequisite

@@ -10,9 +10,9 @@ def compile_with_nnf(model_name: str, gm: torch.fx.GraphModule,
     gm = magic_rewrite(gm)
     onnx_graph = to_onnx(gm, *real_inputs)
     # run with onnx
-    import onnxruntime as ort
-    ort_session = ort.InferenceSession(onnx_graph.SerializeToString())
-    input_names = [inp.name for inp in ort_session.get_inputs()]
+    # import onnxruntime as ort
+    # ort_session = ort.InferenceSession(onnx_graph.SerializeToString())
+    # input_names = [inp.name for inp in ort_session.get_inputs()]
     # def run_with_onnx(*args):
     #     print("run with onnx")
     #     import numpy as np

@@ -102,7 +102,6 @@ def onnx_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
 
 
 def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
-    print("start nnf backend", flush=True)
     global num_graph
     num_graph += 1
     real_inputs = tuple([torch.rand(x.shape, dtype=x.dtype, layout=x.layout, device=x.device) for x in  example_inputs])
@@ -111,13 +110,31 @@ def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
     os.makedirs("tmp", exist_ok=True)
     model_name = sys_config.get_config('model_name')
     model_path = f"tmp/{model_name}_onnx_graph_{num_graph}.onnx"
-    print("start onnx export", flush=True)
-    torch.onnx.export(gm, real_inputs, model_path, verbose=True, opset_version=12, input_names=input_names, training=torch.onnx.TrainingMode.TRAINING, do_constant_folding=False) # should be do_constant_folding=False
-    print("end onnx export", flush=True)
-    print("gm", gm.graph)
-    for node in gm.graph.nodes:
-        if node.name == "self_avg":
-            return gm.forward
+    from fx2onnx import to_onnx
+    import onnx
+    onnx_graph = to_onnx(gm, *real_inputs)
+    onnx.save(onnx_graph, model_path)
+    
+    # run with onnx
+    # import onnxruntime as ort
+    # ort_session = ort.InferenceSession(model_path)
+    # input_names = [inp.name for inp in ort_session.get_inputs()]
+
+    # def run_with_onnx(*args):
+    #     print("-- run with onnx")
+    #     import numpy as np
+    #     inputs = [x.cpu().numpy() for x in args]
+    #     input_names = [inp.name for inp in ort_session.get_inputs()]
+    #     ort_inputs = dict(zip(input_names, inputs))
+    #     # print("ort_inputs", ort_inputs)
+    #     outputs = ort_session.run(None, ort_inputs)
+    #     outputs = [torch.tensor(x).cuda() for x in outputs]
+    #     expect_outputs = gm.forward(*args)
+    #     for i in range(len(expect_outputs)):
+    #         # print("evaluate", i, flush=True)
+    #         assert_equal(expect_outputs[i], outputs[i])    
+    #     return outputs
+    # return run_with_onnx
 
     import onnx
     import onnxruntime as ort
@@ -145,9 +162,10 @@ def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
         flags_str += " ".join([
             "-f{}={}".format(k, v) for k, v in codegen_flags.items()
         ])
-        print("work dir:", workdir,)
+        # print("work dir:", workdir,)
         os.system(f"rm -r {workdir}")
         os.system(f"mkdir -p {workdir}")
+        os.system(f"cp -r tmp/bin {workdir}")
         codegen(onnx_model_path, flags_str, workdir)
         # os.system(f"cat {workdir}/codegen.log ")
         modify_nnfusion_rt(rt_dir)
@@ -162,7 +180,7 @@ def nnf_backend(gm: torch.fx.GraphModule, example_inputs: List[torch.Tensor]):
             "codegen_unexist_kernel": True, # generate kernel for unexist op
             "product_name": "A100",
             "default_device": "CUDA",
-            "kernel_cache_path": os.path.expanduser("~/.cache/nnfusion/kernel_cache.db"),
+            "kernel_cache_path": f'/tmp/{os.environ.get("USER")}/nnfusion/kernel_cache.db',
             'biasadd_fix': True,
             'check_result': True,
             'conv_cnhw': True,
@@ -333,8 +351,7 @@ def perf_test_run_cf(f, compiled, compile_mode, repeat, args_all, kwargs_all):
         torch.cuda.synchronize()
         o2 = compiled(*args_all[idx], **kwargs_all[idx])
         torch.cuda.synchronize()
-        if compile_mode != 'dynamo-nnf':
-            assert_equal(o1, o2)
+        assert_equal(o1, o2)
 
     profile_start()
     timer = Timer('ms')
