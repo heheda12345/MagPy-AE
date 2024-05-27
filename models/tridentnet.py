@@ -30,6 +30,7 @@ import torch.nn.functional as F
 from torch import distributed as dist
 import logging
 
+# MODIFIED: a simplified operator registry
 CONV_LAYERS = {
     'Conv1d': nn.Conv1d,
     'Conv2d': nn.Conv2d,
@@ -51,6 +52,8 @@ NORM_LAYERS = {
     'IN2d': nn.InstanceNorm2d,
     'IN3d': nn.InstanceNorm3d,
 }
+
+PLUGIN_LAYERS = {}
 
 
 def get_dist_info() -> Tuple[int, int]:
@@ -183,6 +186,7 @@ def print_log(msg, logger=None, level=logging.INFO):
             f'"silent" or None, but got {type(logger)}')
 
 
+# MODIFIED: rename infer_abbr in mmcv/cnn/bricks/norm.py to avoid name conflit
 def infer_abbr_norm(class_type):
     """Infer abbreviation from the class name.
 
@@ -210,6 +214,7 @@ def infer_abbr_norm(class_type):
             f'class_type must be a type, but got {type(class_type)}')
     if hasattr(class_type, '_abbr_'):
         return class_type._abbr_
+    # MODIFIED: remove _InstanceNorm to simplify dependency
     # if issubclass(class_type, _InstanceNorm):  # IN is a subclass of BN
     #     return 'in'
     if issubclass(class_type, _BatchNorm):
@@ -262,7 +267,7 @@ def build_norm_layer(cfg: Dict,
         raise KeyError(f'Unrecognized norm type {layer_type}')
 
     norm_layer = NORM_LAYERS.get(layer_type)
-    abbr = infer_abbr_norm(norm_layer)
+    abbr = infer_abbr_norm(norm_layer) # MODIFIED: rename infer_abbr to infer_abbr_norm
 
     assert isinstance(postfix, (int, str))
     name = abbr + str(postfix)
@@ -316,9 +321,8 @@ def build_conv_layer(cfg: Optional[Dict], *args, **kwargs) -> nn.Module:
 
     return layer
 
-PLUGIN_LAYERS = {}
 
-
+# MODIFIED: rename infer_abbr in mmcv/cnn/bricks/plugin.py to avoid name conflit
 def infer_abbr_plugin(class_type: type) -> str:
     """Infer abbreviation from the class name.
 
@@ -390,7 +394,7 @@ def build_plugin_layer(cfg: Dict,
         raise KeyError(f'Unrecognized plugin type {layer_type}')
 
     plugin_layer = PLUGIN_LAYERS.get(layer_type)
-    abbr = infer_abbr_plugin(plugin_layer)
+    abbr = infer_abbr_plugin(plugin_layer) # MODIFIED: rename infer_abbr to infer_abbr_plugin
 
     assert isinstance(postfix, (int, str))
     name = abbr + str(postfix)
@@ -987,8 +991,6 @@ class GeneralizedAttention(nn.Module):
                     distribution='uniform',
                     a=1)
 
-
-PLUGIN_LAYERS['GeneralizedAttention'] = GeneralizedAttention
 
 class ResLayer(Sequential):
     """ResLayer to build ResNet style backbone.
@@ -2031,10 +2033,10 @@ class TridentResNet(ResNet):
         self.res_layers.insert(last_stage_idx, layer_name)
 
         self._freeze_stages()
-# '''
 
+# MODIFIED: register GeneralizedAttention
+PLUGIN_LAYERS['GeneralizedAttention'] = GeneralizedAttention
 
-# from mmdet.models.backbones import TridentResNet
 import torch
 
 def get_model():

@@ -10,7 +10,7 @@ for model in model_names:
                 dynamo_cnt = int(s.strip().split()[-1])
     with open(f"{LOG_DIR}/{model}.script.log") as f:
         for s in f.readlines():
-            if s.strip() == "run torch.jit.script":
+            if s.strip() == "run torch.jit.script" or s.startswith("create class with torch.jit.ignore"):
                 torchscript_cnt += 1
     print(f"{model=}, {dynamo_cnt=}, {torchscript_cnt=}")
 

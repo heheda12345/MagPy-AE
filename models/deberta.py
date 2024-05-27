@@ -669,7 +669,6 @@ class DisentangledSelfAttention(nn.Module):
             attention_scores = self.head_logits_proj(attention_scores.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
 
         attention_probs = XSoftmax.apply(attention_scores, attention_mask, -1)
-        # attention_probs = xsoftmax_call(attention_scores, attention_mask, -1)
         attention_probs = self.dropout(attention_probs)
         if self.talking_head:
             attention_probs = self.head_weights_proj(attention_probs.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
@@ -695,19 +694,15 @@ class DisentangledSelfAttention(nn.Module):
         elif relative_pos.dim() != 4:
             raise ValueError(f"Relative position ids must be of dim 2 or 3 or 4. {relative_pos.dim()}")
 
+        # MODIFIED: enable dynamo dynamic shape mode
         # att_span = min(max(query_layer.size(-2), key_layer.size(-2)), self.max_relative_positions)
         # relative_pos = relative_pos.long().to(query_layer.device)
         # rel_embeddings = rel_embeddings[
         #     self.max_relative_positions - att_span : self.max_relative_positions + att_span, :
         # ].unsqueeze(0)
 
-        # enable dynamo dynamic shape mode
         att_span = min(max(query_layer.size(-2), key_layer.size(-2)), 512)
-        # att_span = min(max(query_layer.size(-2), key_layer.size(-2)), self.max_relative_positions)
         relative_pos = relative_pos.long().to(query_layer.device)
-        # rel_embeddings = rel_embeddings[
-        #     self.max_relative_positions - att_span : self.max_relative_positions + att_span, :
-        # ].unsqueeze(0)
         rel_embeddings = rel_embeddings[
             512 - att_span : 512 + att_span, :
         ].unsqueeze(0)
@@ -802,6 +797,7 @@ class DebertaEmbeddings(nn.Module):
             token_type_embeddings = self.token_type_embeddings(token_type_ids)
             embeddings += token_type_embeddings
 
+        # MODIFIED: for dynamo dynamic shape
         # if self.embedding_size != self.config.hidden_size:
         #     embeddings = self.embed_proj(embeddings)
 

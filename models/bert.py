@@ -167,7 +167,7 @@ class BertSelfAttention(nn.Module):
 
         context_layer = context_layer.permute(0, 2, 1, 3).contiguous()
         # new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
-        # for run dynamo.dynamic
+        # MODIFIED for run dynamo.dynamic
         new_context_layer_shape = context_layer.size()[:-2] + (768,)
         context_layer = context_layer.view(new_context_layer_shape)
 
