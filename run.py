@@ -43,10 +43,15 @@ with NO_LD_PRELOAD_CTX():
             model = module.get_model_with_bs(args.bs)
         else:
             raise ValueError("lack of get_model in {}".format(args.model))
+        model.eval()
+        if args.dyn_cf + args.dyn_bs + args.dyn_len == 0:
+            input_args, input_kwargs = module.get_input(batch_size=args.bs)
+            expected_output = model(*input_args, **input_kwargs)
+        else:
+            expected_output = None
         assert args.dyn_cf + args.dyn_bs + args.dyn_len <= 1
         import frontend
         frontend.config.set_config('model_name', f"{args.model}_bs{args.bs}")
-        model.eval()
         if args.compile in ("xla", "dynamo-xla", "sys-xla"):
             model = model.to('cpu').to(xm.xla_device())
         if args.dyn_cf:
@@ -58,14 +63,13 @@ with NO_LD_PRELOAD_CTX():
                 for_iter_pc = 32
                 frontend.dynamic.mark_dynamic_pc(frontend.c_api.get_next_frame_id(), for_iter_pc,
                                 frontend.dynamic.DynamicControlFlow(for_iter_pc, "FOR_ITER"))
-            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, 'cf', args.check)
+            perf_test(model, args.compile, input_args, input_kwargs, None, module.get_input, args.repeat, 'cf', args.check)
         elif args.dyn_bs:
-            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'bs', args.check)
+            perf_test(model, args.compile, None, None, None, module.get_input, args.repeat, 'bs', args.check)
         elif args.dyn_len:
-            perf_test(model, args.compile, None, None, module.get_input, args.repeat, 'len', args.check)
+            perf_test(model, args.compile, None, None, None, module.get_input, args.repeat, 'len', args.check)
         else:
-            input_args, input_kwargs = module.get_input(batch_size=args.bs)
-            perf_test(model, args.compile, input_args, input_kwargs, module.get_input, args.repeat, None, args.check)
+            perf_test(model, args.compile, input_args, input_kwargs, expected_output, module.get_input, args.repeat, None, args.check)
 
     if __name__ == "__main__":
         with torch.no_grad():

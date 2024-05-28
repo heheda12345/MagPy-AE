@@ -148,7 +148,7 @@ def perf_test(batch_size):
     ref = forward_seq(model, input_args[0])
     out = forward_seq(compiled, input_args[0])
     assert_equal(ref, out)
-    perf_test_run(forward_seq, "lstm+cellcompile", 100, (compiled,) + input_args, input_kwargs)
+    perf_test_run(ref, forward_seq, "lstm+cellcompile", 100, (compiled,) + input_args, input_kwargs)
     # perf_test_run(forward_seq, "lstm+cellcompile", 100, (model,) + input_args, input_kwargs)
 
 

@@ -300,10 +300,12 @@ def perf(repeat=100, sync=True, nvprof=True):
     return wrapper1
 
 
-def perf_test_run(f, compile_mode, repeat, args, kwargs):
+def perf_test_run(expect_output, f, compile_mode, repeat, args, kwargs):
     for idx in range(repeat):
         torch.cuda.synchronize()
         o = f(*args, **kwargs)
+        if idx == 0:
+            assert_equal(expect_output, o)
         torch.cuda.synchronize()
     
     profile_start()
@@ -443,7 +445,7 @@ def perf_test_run_seq_len(orignal, f, compile_mode, num_repeat, get_input_fn):
 # torch._dynamo.config.verbose=True
 # torch._dynamo.config.output_code=True
 
-def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_mode, check):
+def perf_test(f, compile_mode, args, kwargs, expect_output, get_input_fn, num_repeat, dynamic_mode, check):
     # logging.basicConfig(level=logging.INFO, force=True)
     if compile_mode == "trace":
         # only when kwargs is empty
@@ -572,7 +574,7 @@ def perf_test(f, compile_mode, args, kwargs, get_input_fn, num_repeat, dynamic_m
     elif compile_mode == "sys-profile":
         perf_test_with_profile(compiled, graph_timer, compile_mode, num_repeat, args, kwargs)
     else:
-        perf_test_run(compiled, compile_mode, num_repeat, args, kwargs)
+        perf_test_run(expect_output, compiled, compile_mode, num_repeat, args, kwargs)
 
     if compile_mode == "dynamo-graph":
         print("num_graph:", num_graph)
