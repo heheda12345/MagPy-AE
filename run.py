@@ -52,7 +52,7 @@ with NO_LD_PRELOAD_CTX():
         assert args.dyn_cf + args.dyn_bs + args.dyn_len <= 1
         import frontend
         frontend.config.set_config('model_name', f"{args.model}_bs{args.bs}")
-        if args.compile in ("xla", "dynamo-xla", "sys-xla"):
+        if args.compile in ("xla", "dynamo-xla", "sys-xla", 'xla-graph'):
             model = model.to('cpu').to(xm.xla_device())
         if args.dyn_cf:
             assert hasattr(module, 'get_dynamic_inputs')
