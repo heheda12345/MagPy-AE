@@ -16,6 +16,7 @@ import os
 import sys
 import torch_xla.core.xla_model as xm
 import torch._dynamo.backends.torchxla
+import torch_xla.debug.metrics as met
 
 _cudart = ctypes.CDLL('libcudart.so')
 
@@ -310,7 +311,16 @@ def perf_test_run(expect_output, f, compile_mode, repeat, args, kwargs):
     
     profile_start()
     timer = Timer()
-    for idx in range(repeat):
+
+    met.clear_all()
+    torch.cuda.synchronize()
+    timer.start()
+    o = f(*args, **kwargs)
+    torch.cuda.synchronize()
+    timer.log()
+    print("CachedCompile:", met.counter_value("CachedCompile"))
+
+    for idx in range(repeat - 1):
         torch.cuda.synchronize()
         timer.start()
         o = f(*args, **kwargs)
@@ -551,6 +561,8 @@ def perf_test(f, compile_mode, args, kwargs, expect_output, get_input_fn, num_re
             xm.wait_device_ops()
             return o
         compiled = f_with_sync
+        xm.mark_step()
+        xm.wait_device_ops()
     else:
         raise NotImplementedError
     global num_graph
