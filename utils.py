@@ -16,6 +16,7 @@ import os
 import sys
 import torch_xla.core.xla_model as xm
 import torch._dynamo.backends.torchxla
+import torch_xla.debug.metrics as met
 
 _cudart = ctypes.CDLL('libcudart.so')
 
@@ -310,6 +311,7 @@ def perf_test_run(expect_output, f, compile_mode, repeat, args, kwargs):
     
     profile_start()
     timer = Timer()
+
     for idx in range(repeat):
         torch.cuda.synchronize()
         timer.start()
@@ -551,6 +553,22 @@ def perf_test(f, compile_mode, args, kwargs, expect_output, get_input_fn, num_re
             xm.wait_device_ops()
             return o
         compiled = f_with_sync
+        xm.mark_step()
+        xm.wait_device_ops()
+    elif compile_mode == 'xla-graph':
+        args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
+        kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
+        def f_with_sync(*args, **kwargs):
+            met.clear_all()
+            o = f(*args, **kwargs)
+            xm.mark_step()
+            xm.wait_device_ops()
+            print("CachedCompile:", met.counter_value("CachedCompile"))
+            print("UncachedCompile:", met.counter_value("UncachedCompile"))
+            return o
+        compiled = f_with_sync
+        xm.mark_step()
+        xm.wait_device_ops()
     else:
         raise NotImplementedError
     global num_graph
