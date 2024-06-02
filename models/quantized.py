@@ -468,7 +468,7 @@ class ResNet_imagenet(ResNet):
         ]
 
 def get_model():
-    return ResNet_imagenet().cuda()
+    return ResNet_imagenet( block=BasicBlock, layers=[2, 2, 2, 2]).cuda()
 
 def get_scripted_model():
     from ._quantized_scripted import _get_scripted_model

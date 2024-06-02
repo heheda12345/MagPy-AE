@@ -482,7 +482,7 @@ class ResNet_imagenet(ResNet):
 
 
 def _get_scripted_model():
-    model = ResNet_imagenet().cuda()
+    model = ResNet_imagenet(block=BasicBlock, layers=[2, 2, 2, 2]).cuda()
     model = script_with_log(model)
     return model
 

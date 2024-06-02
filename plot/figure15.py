@@ -87,7 +87,7 @@ def plot(data, model_names, sys_names, figure_name):
   
   ax.set_xticks(x * width + 3.5, [MODEL_NAME[n] for n in model_names])
   ax.set_ylabel("Time (s)")
-  ax.set_ylim(0, 0.1)
+  # ax.set_ylim(0, 0.1)
   plt.legend() 
   plt.legend(ncol=4, frameon=False)
 

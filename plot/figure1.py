@@ -67,7 +67,7 @@ def plot(data, model_names, sys_names, legend_orders):
   
   ax.set_xticks(x * width + 1, [MODEL_NAME[n] for n in model_names])
   ax.set_ylabel("Time (s)")
-  ax.set_ylim(0, 0.036)
+  ax.set_ylim(0, 0.05)
 
   handles, labels = plt.gca().get_legend_handles_labels()
   plt.legend([handles[idx] for idx in legend_orders],[labels[idx] for idx in legend_orders], loc='upper left', ncol=2, frameon=False) 
