@@ -11,7 +11,11 @@ do
     do
         for compile in dynamo-graph script xla-graph
         do
-                srun -p octave --gres=gpu:1 -J graphcount-$model-$compile --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs $bs --model $model --compile $compile --repeat 3 2>&1 | tee $LOG_DIR/$model.$compile.log &
+             if [[ $compile == "xla-graph" ]]; then
+                echo "export NVIDIA_TF32_OVERRIDE=0 for $model $compile"
+                export NVIDIA_TF32_OVERRIDE=0
+            fi
+            srun -p octave --gres=gpu:1 -J graphcount-$model-$compile --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs $bs --model $model --compile $compile --repeat 3 2>&1 | tee $LOG_DIR/$model.$compile.log &
         done
     done
 done

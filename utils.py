@@ -559,6 +559,8 @@ def perf_test(f, compile_mode, args, kwargs, expect_output, get_input_fn, num_re
         args = tuple((arg.to('cpu').to(xm.xla_device()) for arg in args))
         kwargs = dict({k: v.to('cpu').to(xm.xla_device()) for k, v in kwargs.items()})
         def f_with_sync(*args, **kwargs):
+            xm.mark_step()
+            xm.wait_device_ops()
             met.clear_all()
             o = f(*args, **kwargs)
             xm.mark_step()

@@ -11,7 +11,8 @@ with NO_LD_PRELOAD_CTX():
     import numpy as np
     import torch_xla.core.xla_model as xm
     import torch
-
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
     parser = argparse.ArgumentParser()
     parser.add_argument("--compile", type=str, default="sys")
     parser.add_argument("--model", type=str, required=True)

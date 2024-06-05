@@ -5,10 +5,10 @@ This repository contains the artifact for the paper "DeepVisor: Effective Operat
 
 ### Evaluation Setup
 * Artifacts Available:
-    * All DeepVisor related code are available under [https://github.com/heheda12345/frontend](https://github.com/heheda12345/frontend), and all artifact scripts are available under [https://github.com/heheda12345/frontend-AE](https://github.com/heheda12345/frontend-AE)
+    * All DeepVisor related code are available under [https://github.com/heheda12345/MagPy](https://github.com/heheda12345/MagPy), and all artifact scripts are available under [https://github.com/heheda12345/MagPy-AE](https://github.com/heheda12345/MagPy-AE)
 * Artifacts Functional:
     * *Documentation*: the following of documents include detailed guidelines on how to build, install, test DeepVisor and the experiments to compare with other baselines.
-    * *Completeness*: the source code of DeepVisor is located at ``frontend/frontend``, with `cache.py` as the cache, `object_table.py` as the RefGraph, `variables` folder as different type of ShadowNodes and ShadowVersion. 
+    * *Completeness*: the source code of DeepVisor is located at ``MagPy/frontend``, with `cache.py` as the cache, `object_table.py` as the RefGraph, `variables` folder as different type of ShadowNodes and ShadowVersion. 
     * *Exercisability*: in this repository, we prepare all the script and data to reproduce the experiements in individual folders named by the figure or table id in paper.
 * Results Reproduced:
     * To reproduce the main results presented in our paper, we provide detailed guideline to install the softwares with the same configurations as we used in paper evauation, and scripts to help reproduce the results step by step.
@@ -16,15 +16,12 @@ This repository contains the artifact for the paper "DeepVisor: Effective Operat
 
 ## 2. Environment Preparation
 
-**For AE Reviewers**:
-We have prepared the environment in our cluster. Please follow the instructions in "Comments for AEC" on HotCRP to connect to our cluster and use `source ~/ae_env.sh` to load the environment. Then, you can skip this section.
-
 * Download code
     ```bash
-    git clone https://github.com/heheda12345/frontend.git
-    git clone https://github.com/heheda12345/frontend-AE.git
-    export FRONTEND_DIR=$PWD/frontend
-    export AE_DIR=$PWD/frontend-AE
+    git clone https://github.com/heheda12345/MagPy.git
+    git clone https://github.com/heheda12345/MagPy-AE.git
+    export FRONTEND_DIR=$PWD/MagPy
+    export AE_DIR=$PWD/MagPy-AE
     ```
 
 * Prerequisite
@@ -58,14 +55,6 @@ The README.md in frontend repo only provides the guide to run DeepVisor. More de
 ## 4. Reproducing Experiement Results
 
 TABLE 3 and Figure 18 needs additional environment setup. Please follow the instructions in [Figure18/README.md](Figure18/README.md) and [Table3/README.md](Table3/README.md) to setup the environment. Then, you can ``cd`` to each folder and use ``./run.sh'' to reproduce the results.
-
-**For AE Reviewers:**: we have already setup the environment for DeepVisor and all experemetns in our cluster. You can use the following command to load the environment and run all experiments (except Table 3, which requires a long time).
-
-```bash
-source ~/ae_env.sh
-cd ~/frontend-AE
-./run_all.sh
-```
 
 | Experiments   | Figure # in Paper |  Script Location |
 | -----------     | -----------  |  ----------- |

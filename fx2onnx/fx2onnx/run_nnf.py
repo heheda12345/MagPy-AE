@@ -55,7 +55,7 @@ def compile_with_nnf(model_name: str, gm: torch.fx.GraphModule,
     model_compile_config = {
         'lstm_bs1': f'-f onnx -fcodegen_unexist_kernel=true -fproduct_name=A100 -fbiasadd_fix=true -fcheck_result=true -fextern_result_memory=true -fconv_cnhw=false -fdefault_device=CUDA -fkernel_cache_path={kernel_cache_path} -fcf_level=2',
         'lstm_bs16': f'-f onnx -fcodegen_unexist_kernel=true -fproduct_name=A100 -fbiasadd_fix=true -fcheck_result=true -fextern_result_memory=true -fconv_cnhw=false -fdefault_device=CUDA -fkernel_cache_path={kernel_cache_path} -fcf_level=2',
-        'blockdrop_bs1': f'-f onnx -fcodegen_unexist_kernel=true -fproduct_name=A100 -fbiasadd_fix=true -fcheck_result=true -fextern_result_memory=true -fconv_cnhw=true -fdefault_device=CUDA -fkernel_cache_path={kernel_cache_path} -fcf_level=1 -fbranch_split=true -fbranch_fine_grained=true -fmax_grid_dim=160 -fmax_block_dim=512',
+        'blockdrop_bs1': f'-f onnx -fcodegen_unexist_kernel=true -fproduct_name=A100 -fbiasadd_fix=true -fcheck_result=true -fextern_result_memory=true -fconv_cnhw=true -fdefault_device=CUDA -fkernel_cache_path={kernel_cache_path} -fcf_level=1 -fbranch_split=false -fbranch_fine_grained=false -fmax_grid_dim=160 -fmax_block_dim=256',
         'blockdrop_bs16': f'-f onnx -fcodegen_unexist_kernel=true -fproduct_name=A100 -fbiasadd_fix=true -fcheck_result=true -fextern_result_memory=true -fconv_cnhw=true -fdefault_device=CUDA -fkernel_cache_path={kernel_cache_path} -fcf_level=1 -fbranch_split=true -fbranch_fine_grained=true -fmax_grid_dim=128 -fmax_block_dim=512'
     }
     if model_name not in model_compile_config:
