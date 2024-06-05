@@ -32,16 +32,19 @@ you will get below results:
 ```
 analyzing...
 overall models 2000
-  -untested models: 581
-    --no tests:      507
-    --no profiling:  74
+  -untested models:   579
+    --no tests:       490
+    --all crashed:    15
+    --no profiling:   74
 
-  -remaining models:  1419
-  -dynamic models:    128
-  -static models:     1291
+  -remaining models:        1421
+  -dynamic overall models:  230
+     --eager dynamic:       110
+     --graph dynamic:       120
+  -static models:     1191
 
 mode         total      Failed cases  Fail rate
-sys          1291       89         6.9%    
-dynamo       1291       838        39.3%    
-torchscript  1291       507        64.9%
+sys          1191       79         6.6%    
+dynamo       1191       272        22.8%    
+torchscript  1191       769        64.6%
 ```
