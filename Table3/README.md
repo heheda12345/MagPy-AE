@@ -11,7 +11,7 @@ cd pytorch-jit-paritybench
 ```
 
 ### 2. Evaluating 
-The following command evaluates dynamo, torchscript and DeepVisor with all models in ParityBench. Note that this command will takes a long time (Ten hours if using one GPU)
+The following command evaluates dynamo, torchscript and MagPy with all models in ParityBench. Note that this command will takes a long time (Ten hours if using one GPU)
 
 ```
 ./run.sh

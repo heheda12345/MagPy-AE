@@ -1,14 +1,14 @@
-# ATC'24 DeepVisor Artifact
+# ATC'24 MagPy Artifact
 
 ## 1. Overview
-This repository contains the artifact for the paper "DeepVisor: Effective Operator Graph Instantiation for Deep Learning by Execution State Monitoring" to be appeared in USENIX ATC'24. DeepVisor is a JIT compiler for PyTorch programs. It can extract the operator graph from PyTorch programs and optimize the graph with a wide range of deep learning graph compilers.
+This repository contains the artifact for the paper "MagPy: Effective Operator Graph Instantiation for Deep Learning by Execution State Monitoring" to be appeared in USENIX ATC'24. MagPy is a JIT compiler for PyTorch programs. It can extract the operator graph from PyTorch programs and optimize the graph with a wide range of deep learning graph compilers.
 
 ### Evaluation Setup
 * Artifacts Available:
-    * All DeepVisor related code are available under [https://github.com/heheda12345/MagPy](https://github.com/heheda12345/MagPy), and all artifact scripts are available under [https://github.com/heheda12345/MagPy-AE](https://github.com/heheda12345/MagPy-AE)
+    * All MagPy related code are available under [https://github.com/heheda12345/MagPy](https://github.com/heheda12345/MagPy), and all artifact scripts are available under [https://github.com/heheda12345/MagPy-AE](https://github.com/heheda12345/MagPy-AE)
 * Artifacts Functional:
-    * *Documentation*: the following of documents include detailed guidelines on how to build, install, test DeepVisor and the experiments to compare with other baselines.
-    * *Completeness*: the source code of DeepVisor is located at ``MagPy/frontend``, with `cache.py` as the cache, `object_table.py` as the RefGraph, `variables` folder as different type of ShadowNodes and ShadowVersion. 
+    * *Documentation*: the following of documents include detailed guidelines on how to build, install, test MagPy and the experiments to compare with other baselines.
+    * *Completeness*: the source code of MagPy is located at ``MagPy/frontend``, with `cache.py` as the cache, `object_table.py` as the RefGraph, `variables` folder as different type of ShadowNodes and ShadowVersion. 
     * *Exercisability*: in this repository, we prepare all the script and data to reproduce the experiements in individual folders named by the figure or table id in paper.
 * Results Reproduced:
     * To reproduce the main results presented in our paper, we provide detailed guideline to install the softwares with the same configurations as we used in paper evauation, and scripts to help reproduce the results step by step.
@@ -29,7 +29,7 @@ This repository contains the artifact for the paper "DeepVisor: Effective Operat
     * CUDA 11.8 (Fully tested, other versions may work)
 
 * Install dependencies
-The README.md in frontend repo only provides the guide to run DeepVisor. More dependencies are needed to reproduce the results in this paper. Please use the following steps to step up the environment.
+The README.md in frontend repo only provides the guide to run MagPy. More dependencies are needed to reproduce the results in this paper. Please use the following steps to step up the environment.
 
     ```bash
     cd $AE_DIR && pip install -r requirements.txt -f https://download.pytorch.org/whl/torch_stable.html && cd ..

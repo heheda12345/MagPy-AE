@@ -1,7 +1,7 @@
-# Get Start Tutorial: Compile a Toy model with DeepVisor
-We assume you already build and install DeepVisor following the *Installation* section in [README.md](../README.md).
+# Get Start Tutorial: Compile a Toy model with MagPy
+We assume you already build and install MagPy following the *Installation* section in [README.md](../README.md).
 
-This tutorial will first show how to use DeepVisor to compile and optimize a simple PyTorch program. Then, we will demonstrate the performance improvement with DeepVisor compiler for compiling complex PyTorch programs.
+This tutorial will first show how to use MagPy to compile and optimize a simple PyTorch program. Then, we will demonstrate the performance improvement with MagPy compiler for compiling complex PyTorch programs.
 
 *** for AE Reviewers ***
 Please use the following command to load the environment in our cluster.
@@ -86,13 +86,13 @@ srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compi
 # TorchDynamo-Inductor
 srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile dynamo
 
-# DeepVisor-Inductor
+# MagPy-Inductor
 srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys
 
 # TorchScript-TorchScript
 srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile script
 
-# DeepVisor-TorchScript
+# MagPy-TorchScript
 srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys-torchscript
 
 # LazyTensor-XLA
@@ -101,7 +101,7 @@ XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU s
 # TorchDynamo-XLA
 XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU srun -p octave --gres=gpu:1 --pty python3 run.py --bs 1 --model densenet --compile dynamo-xla
 
-# DeepVisor-XLA
+# MagPy-XLA
 XLA_FLAGS=--xla_gpu_cuda_data_dir=$CUDA_HOME GPU_NUM_DEVICES=1 PJRT_DEVICE=GPU srun -p octave --gres=gpu:1 --pty --export=ALL,LD_PRELOAD=$FRONTEND_DIR/build/ldlong.v3.9.12.so python3 run.py --bs 1 --model densenet --compile sys-xla
 
 ```
@@ -110,11 +110,11 @@ You can also change --compile as following:
 
 |    --compile    	|     Name in paper     	|
 |:---------------:	|:---------------------:	|
-| sys-torchscript 	| DeepVisor-TorchScript 	|
+| sys-torchscript 	| MagPy-TorchScript 	|
 |    dynamo-xla   	|    TorchDynamo-XLA    	|
-|     sys-xla     	|     DeepVisor-XLA     	|
+|     sys-xla     	|     MagPy-XLA     	|
 
-The output of each command should end up with the following log, showing that DeepVisor can outperform other approaches when using the same graph compiler:
+The output of each command should end up with the following log, showing that MagPy can outperform other approaches when using the same graph compiler:
 ```
 compile_mode: eager
 100 iters, min = 0.0114 s, max = 0.0123 s, avg = 0.0115 s

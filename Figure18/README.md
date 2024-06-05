@@ -23,7 +23,7 @@ pip install -e .
 ```
 
 2. Install fx2onnx
-Cocktailer needs operator graph in ONNX format, so we build fx2onnx to convert the torch.fx graph of DeepVisor to ONNX format.
+Cocktailer needs operator graph in ONNX format, so we build fx2onnx to convert the torch.fx graph of MagPy to ONNX format.
 ```bash
 cd $AE_DIR/fx2onnx
 pip install -e .

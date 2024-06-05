@@ -62,7 +62,7 @@ MODEL_NAME = {
   'tridentnet': 'TridentNet',
 }
 
-OUR_SYS = 'DeepVisor'
+OUR_SYS = 'MagPy'
 
 SYS_NAME = {
   'eager': 'Eager',
